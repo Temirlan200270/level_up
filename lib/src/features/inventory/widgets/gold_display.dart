@@ -10,6 +10,7 @@ class GoldDisplay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hunter = ref.watch(hunterProvider);
     final gold = hunter?.gold ?? 0;
+    final scheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -18,14 +19,14 @@ class GoldDisplay extends ConsumerWidget {
         children: [
           Text(
             '$gold',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.amber,
+              color: scheme.secondary,
             ),
           ),
           const SizedBox(width: 8),
-          const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
+          Icon(Icons.monetization_on, color: scheme.secondary, size: 24),
         ],
       ),
     );

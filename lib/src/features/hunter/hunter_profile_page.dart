@@ -11,7 +11,6 @@ import '../../models/achievement_model.dart';
 import '../../core/systems/system_dictionary.dart';
 import '../../services/providers.dart';
 import '../../services/database_service.dart';
-import '../quests/quests_page.dart';
 import '../shop/shop_screen.dart';
 import 'widgets/profile_analytics_section.dart';
 import '../../core/promo_ui.dart';
@@ -28,7 +27,7 @@ class HunterProfilePage extends ConsumerStatefulWidget {
 
 class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
   final TextEditingController _nameController = TextEditingController();
-  bool _awakeningSceneScheduled = false;
+  // Кинематографичный онбординг (Фаза 7.5) запускается глобально из `HomeShell`.
 
   @override
   void dispose() {
@@ -46,16 +45,6 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
     // Если охотника нет, показываем экран создания
     if (hunter == null) {
       return _buildCreateHunterScreen(context, ref);
-    }
-
-    if (!_awakeningSceneScheduled &&
-        DatabaseService.isSystemSelectionShown() &&
-        DatabaseService.canShowAwakeningTutorialScene()) {
-      _awakeningSceneScheduled = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!context.mounted) return;
-        await _showAwakeningTutorialSceneDialog(context, t);
-      });
     }
 
     return Scaffold(
@@ -208,113 +197,8 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
     );
   }
 
-  Future<void> _showAwakeningTutorialSceneDialog(
-    BuildContext context,
-    String Function(String, {Map<String, String>? params}) t,
-  ) async {
-    var step = 0;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) {
-          return AlertDialog(
-            backgroundColor: SoloLevelingColors.surface,
-            title: Text(
-              t('awakening_scene_title'),
-              style: const TextStyle(color: SoloLevelingColors.textPrimary),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (step == 0) ...[
-                  Text(
-                    t('awakening_scene_step0'),
-                    style: const TextStyle(color: SoloLevelingColors.textSecondary),
-                  ),
-                  const SizedBox(height: 10),
-                  const Icon(Icons.auto_awesome_rounded,
-                      color: SoloLevelingColors.neonPurple),
-                ] else if (step == 1) ...[
-                  Text(
-                    t('awakening_scene_step1'),
-                    style: const TextStyle(color: SoloLevelingColors.textSecondary),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle_rounded,
-                          color: SoloLevelingColors.neonGreen),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          t('awakening_scene_step1_hint'),
-                          style: const TextStyle(color: SoloLevelingColors.textSecondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  Text(
-                    t('awakening_scene_step2'),
-                    style: const TextStyle(color: SoloLevelingColors.textSecondary),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.whatshot_rounded,
-                          color: SoloLevelingColors.neonBlue),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          t('awakening_scene_step2_hint'),
-                          style: const TextStyle(color: SoloLevelingColors.textSecondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-            actions: [
-              if (step > 0)
-                TextButton(
-                  onPressed: () {
-                    setLocal(() => step--);
-                  },
-                  child: Text(t('awakening_scene_back')),
-                ),
-              TextButton(
-                onPressed: () async {
-                  if (step < 2) {
-                    setLocal(() => step++);
-                    return;
-                  }
-
-                  await DatabaseService.setAwakeningTutorialSceneShown(true);
-                  if (!ctx.mounted) return;
-                  Navigator.pop(ctx);
-                  if (!ctx.mounted) return;
-                  Navigator.of(ctx).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const QuestsPage(),
-                    ),
-                  );
-                },
-                child: Text(
-                  step < 2
-                      ? t('awakening_scene_next')
-                      : t('awakening_scene_finish'),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
+  // Legacy: Awakening Scene dialog.
+  // Фаза 7.5 заменила этот шаг на `OnboardingJourneyScreen`.
 
   // Экран создания охотника
   Widget _buildCreateHunterScreen(BuildContext context, WidgetRef ref) {

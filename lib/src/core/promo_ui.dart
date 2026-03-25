@@ -35,7 +35,7 @@ class _ProfileBackdropState extends State<ProfileBackdrop> {
         );
 
     final backgroundKey =
-        '${visuals.backgroundKind.name}|${visuals.backgroundAssetPath}|${scheme.primary.value}|${scheme.secondary.value}';
+        '${visuals.backgroundKind.name}|${visuals.backgroundAssetPath}|${scheme.primary.toARGB32()}|${scheme.secondary.toARGB32()}';
 
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
@@ -481,22 +481,27 @@ class ProfileNeonCard extends StatelessWidget {
 
 /// Заголовок секции: капс, плотный трекинг.
 Widget profileSectionTitle(BuildContext context, String text) {
+  final visuals = Theme.of(context).extension<SystemVisuals>();
+  final tracking = (visuals?.titleLetterSpacing ?? 2.2).clamp(1.0, 4.0);
   return Text(
     text.toUpperCase(),
     style: GoogleFonts.manrope(
       fontSize: 11,
       fontWeight: FontWeight.w800,
-      letterSpacing: 2.2,
+      letterSpacing: tracking,
       color: SoloLevelingColors.textSecondary,
     ),
   );
 }
 
 /// Заголовок экрана / AppBar в стиле promo.
-TextStyle promoAppBarTitleStyle() {
+TextStyle promoAppBarTitleStyle(BuildContext context) {
+  final visuals = Theme.of(context).extension<SystemVisuals>();
+  final tracking = (visuals?.titleLetterSpacing ?? 0.0).clamp(0.0, 4.0);
   return GoogleFonts.manrope(
     fontSize: 18,
     fontWeight: FontWeight.w700,
+    letterSpacing: tracking,
     color: SoloLevelingColors.textPrimary,
   );
 }

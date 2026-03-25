@@ -18,6 +18,7 @@ class ShopScreen extends ConsumerWidget {
     // Получаем текущее количество золота (с защитой от null)
     final gold = ref.watch(hunterProvider.select((h) => h?.gold ?? 0));
     final hunterLevel = ref.watch(hunterProvider.select((h) => h?.level ?? 1));
+    final scheme = Theme.of(context).colorScheme;
 
     // Список товаров из файла данных
     final shopItems = allGameItems;
@@ -32,24 +33,26 @@ class ShopScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
+              color: scheme.surface.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: scheme.secondary.withValues(alpha: 0.45),
+              ),
             ),
             child: Row(
               children: [
                 Text(
                   '$gold',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.amber,
+                    color: scheme.secondary,
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(
+                Icon(
                   Icons.monetization_on,
-                  color: Colors.amber,
+                  color: scheme.secondary,
                   size: 20,
                 ),
               ],
@@ -125,9 +128,11 @@ class ShopScreen extends ConsumerWidget {
                 trailing: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: canAfford
-                        ? Colors.amber
-                        : Colors.grey[800],
-                    foregroundColor: canAfford ? Colors.black : Colors.grey,
+                        ? scheme.secondary
+                        : scheme.surface.withValues(alpha: 0.9),
+                    foregroundColor: canAfford
+                        ? scheme.onSecondary
+                        : scheme.onSurface.withValues(alpha: 0.55),
                   ),
                   onPressed: canAfford
                       ? () {
@@ -141,7 +146,8 @@ class ShopScreen extends ConsumerWidget {
                                 t('item_bought', params: {'name': item.name}),
                               ),
                               duration: const Duration(seconds: 1),
-                              backgroundColor: Colors.green,
+                              backgroundColor:
+                                  scheme.tertiary.withValues(alpha: 0.85),
                             ),
                           );
                         }

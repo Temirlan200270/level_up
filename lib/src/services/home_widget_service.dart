@@ -27,9 +27,15 @@ class HomeWidgetService {
     await HomeWidget.saveWidgetData<String>('title', title);
     await HomeWidget.saveWidgetData<int>('level', level);
     await HomeWidget.saveWidgetData<int>('gold', gold);
-    await HomeWidget.saveWidgetData<String>('daily1', daily.length >= 1 ? daily[0] : '');
-    await HomeWidget.saveWidgetData<String>('daily2', daily.length >= 2 ? daily[1] : '');
-    await HomeWidget.saveWidgetData<String>('daily3', daily.length >= 3 ? daily[2] : '');
+    await HomeWidget.saveWidgetData<String>('daily1', daily.isNotEmpty ? daily[0] : '');
+    await HomeWidget.saveWidgetData<String>(
+      'daily2',
+      daily.length > 1 ? daily[1] : '',
+    );
+    await HomeWidget.saveWidgetData<String>(
+      'daily3',
+      daily.length > 2 ? daily[2] : '',
+    );
 
     // Android: обновляем инстансы.
     await HomeWidget.updateWidget(name: _androidWidgetName);

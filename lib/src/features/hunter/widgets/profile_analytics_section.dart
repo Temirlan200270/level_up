@@ -120,7 +120,7 @@ class ProfileAnalyticsSection extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                height: 7 * 10.0 + 6 * 2,
+                height: 7 * 10.0 + 6 * 2 + 2,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -130,6 +130,7 @@ class ProfileAnalyticsSection extends ConsumerWidget {
                         padding: const EdgeInsets.only(right: 2),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.start,
                           children: List.generate(7, (row) {
                             final v = week[row];
                             return _HeatCell(

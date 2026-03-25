@@ -151,7 +151,10 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                 backgroundColor: Colors.transparent,
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
-                title: Text(t('account_title'), style: promoAppBarTitleStyle()),
+                title: Text(
+                  t('account_title'),
+                  style: promoAppBarTitleStyle(context),
+                ),
                 centerTitle: true,
               ),
               SliverToBoxAdapter(

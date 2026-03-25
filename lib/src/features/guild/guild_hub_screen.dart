@@ -9,6 +9,8 @@ import '../../core/translations.dart';
 import '../../core/systems/system_id.dart';
 import '../../services/database_service.dart';
 import '../../services/providers.dart';
+import '../social/hall_of_fame_screen.dart';
+import '../social/leaderboards_screen.dart';
 
 class GuildHubScreen extends ConsumerWidget {
   const GuildHubScreen({super.key});
@@ -121,7 +123,7 @@ class GuildHubScreen extends ConsumerWidget {
                 elevation: 0,
                 title: Text(
                   t('guild_hub_title'),
-                  style: promoAppBarTitleStyle(),
+                  style: promoAppBarTitleStyle(context),
                 ),
                 centerTitle: true,
                 actions: [
@@ -211,6 +213,32 @@ class GuildHubScreen extends ConsumerWidget {
                                   '${t('guild_hub_your_system')} · ${t('system_${systemId.value}')}',
                               showChevron: false,
                               onTap: null,
+                            ),
+                            const PromoDivider(),
+                            PromoSettingsTile(
+                              icon: Icons.emoji_events_outlined,
+                              title: t('leaderboards_title'),
+                              subtitle: t('leaderboards_subtitle'),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const LeaderboardsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const PromoDivider(),
+                            PromoSettingsTile(
+                              icon: Icons.search_rounded,
+                              title: t('hall_of_fame_title'),
+                              subtitle: t('hall_of_fame_subtitle'),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const HallOfFameScreen(),
+                                  ),
+                                );
+                              },
                             ),
                             const PromoDivider(),
                             Padding(

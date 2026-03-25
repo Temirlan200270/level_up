@@ -14,7 +14,7 @@ import 'features/activities/activities_screen.dart';
 import 'features/guild/guild_hub_screen.dart';
 import 'features/settings/settings_page.dart';
 import 'features/focus/focus_session_layer.dart';
-import 'features/system/system_selection_screen.dart';
+import 'features/onboarding/onboarding_journey_screen.dart';
 import 'services/database_service.dart';
 import 'services/providers.dart';
 
@@ -162,19 +162,24 @@ class _HomeShellState extends ConsumerState<HomeShell>
     final t = useTranslations(ref);
     final hunter = ref.watch(hunterProvider);
     final systemId = ref.watch(activeSystemIdProvider);
+    final tabIndex = ref.watch(homeTabIndexProvider);
+    if (tabIndex != _index) {
+      _index = tabIndex;
+    }
 
-    if (!_systemSelectionScheduled &&
-        hunter != null &&
-        !DatabaseService.isSystemSelectionShown()) {
-      _systemSelectionScheduled = true;
+    if (!_systemSelectionScheduled && hunter != null) {
+      final step = DatabaseService.getOnboardingStep();
+      if (step != OnboardingStep.done) {
+        _systemSelectionScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => const SystemSelectionScreen(isFirstRun: true),
+            builder: (_) => const OnboardingJourneyScreen(),
           ),
         );
       });
+      }
     }
 
     String navLabel(int index) {
@@ -221,9 +226,30 @@ class _HomeShellState extends ConsumerState<HomeShell>
         Scaffold(
           resizeToAvoidBottomInset: false,
           body: IndexedStack(index: _index, children: _pages),
+          floatingActionButton: FloatingActionButton.small(
+            heroTag: 'settings_fab',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SettingsPage(),
+                ),
+              );
+            },
+            backgroundColor:
+                Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
+            foregroundColor: Theme.of(context).colorScheme.secondary,
+            child: Icon(
+              Icons.settings_outlined,
+              semanticLabel: t('settings'),
+            ),
+          ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
+            onDestinationSelected: (i) => setState(() {
+              _index = i;
+              ref.read(homeTabIndexProvider.notifier).state = i;
+            }),
             // Короткие подписи nav_* + только у выбранной вкладки — без переноса по буквам.
             labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
             surfaceTintColor: Colors.transparent,
@@ -261,56 +287,6 @@ class _HomeShellState extends ConsumerState<HomeShell>
                 tooltip: t('skills'),
               ),
             ],
-          ),
-        ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 10, right: 12),
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SettingsPage(),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surface
-                          .withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .secondary
-                            .withValues(alpha: 0.35),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 14,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.settings_outlined,
-                      color: Theme.of(context).colorScheme.secondary,
-                      size: 20,
-                      semanticLabel: t('settings'),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ),
         ),
         const FeedbackOverlayLayer(),

@@ -9,6 +9,7 @@ import '../core/tutorial_quests_seed.dart';
 import '../core/systems/system_config.dart';
 import '../core/systems/system_dictionary.dart';
 import '../core/systems/system_id.dart';
+import '../models/buff_model.dart';
 import '../models/hunter_model.dart';
 import '../models/quest_model.dart';
 import '../models/dungeon_model.dart';
@@ -24,6 +25,71 @@ class DatabaseService {
     await Hive.openBox(settingsBox);
     await Hive.openBox<Map>(hunterBox);
     await Hive.openBox<Map>(questsBox);
+  }
+
+  /// Фоновая обработка дедлайнов квестов (без UI и Riverpod).
+  ///
+  /// Задача: если квест просрочен и всё ещё `active`, перевести в `failed/expired`
+  /// и применить базовые штрафы (gold/exp, сброс стрика, penalty_zone для mandatory).
+  ///
+  /// Важно: это “скелет”. Дальше можно:
+  /// - подключить системные правила (`SystemRules`) для маппинга штрафов,
+  /// - добавить спавн penalty-quest,
+  /// - покрыть widget/UI уведомлениями.
+  static Future<int> applyQuestDeadlinesInBackground() async {
+    refreshWorldEventState();
+    final hunter = getHunter();
+    if (hunter == null) return 0;
+
+    final now = DateTime.now();
+    final all = getAllQuests(includeAllSystems: true);
+    final expiredActive = all
+        .where((q) => q.status == QuestStatus.active && q.expiresAt != null)
+        .where((q) => now.isAfter(q.expiresAt!))
+        .toList();
+    if (expiredActive.isEmpty) return 0;
+
+    var updatedHunter = hunter;
+    var processed = 0;
+    for (final q in expiredActive) {
+      processed++;
+      final penalize = q.penalizeOnFailure;
+      final nextStatus = penalize ? QuestStatus.failed : QuestStatus.expired;
+      await addQuest(
+        q.copyWith(status: nextStatus, failedAt: now),
+        ensureSystemTag: false,
+      );
+
+      if (!penalize) continue;
+
+      // Базовые штрафы (без system rules, чтобы фон был безопасным).
+      final m =
+          updatedHunter.questFailurePenaltyMultiplier *
+          getWorldEventFailurePenaltyMultiplier();
+      final goldLoss = ((10 + updatedHunter.level * 2) * m).round();
+      final expLoss = updatedHunter.currentExp * 0.05 * m;
+
+      updatedHunter = updatedHunter.copyWith(
+        gold: max(0, updatedHunter.gold - goldLoss),
+        currentExp: max(0.0, updatedHunter.currentExp - expLoss),
+        dailyQuestStreak: 0,
+      );
+
+      if (q.mandatory && q.type != QuestType.penalty) {
+        final without = updatedHunter.activeBuffs
+            .where((b) => b.effectId != 'penalty_zone')
+            .toList();
+        final debuff = Buff(
+          effectId: 'penalty_zone',
+          value: 0.5,
+          expiresAt: DateTime.now().add(const Duration(hours: 48)),
+        );
+        updatedHunter = updatedHunter.copyWith(activeBuffs: [...without, debuff]);
+      }
+    }
+
+    await saveHunter(updatedHunter);
+    return processed;
   }
 
   static SystemId _activeSystemTyped() {
@@ -497,9 +563,13 @@ class DatabaseService {
   static const String _kAchievements = 'achievement_ids';
   static const String _kAchievementsBySystem = 'achievement_ids_by_system_json';
   static const String _kGuildName = 'guild_name';
+  static const String _kSocialDisplayName = 'social_display_name';
+  static const String _kSocialDiscriminator = 'social_discriminator_4';
+  static const String _kOnboardingPersonaPrefix = 'onboarding_persona_v1_';
   static const String _kThemeSkin = 'theme_skin_id';
   static const String _kActiveSystemId = 'active_system_id';
   static const String _kSystemSelectionShown = 'system_selection_shown';
+  static const String _kOnboardingStepPrefix = 'onboarding_step_v1_';
   static const String _kMageRuneLastUsed = 'mage_rune_last_used_iso_by_tag';
   static const String _kCustomSystemDictionary = 'custom_system_dictionary_json';
   static const String _kCustomSystemRulesPreset = 'custom_system_rules_preset';
@@ -544,6 +614,70 @@ class DatabaseService {
       '${_kAwakeningTutorialSceneShown}_${id.value}';
   static String _storyMilestonesSpawnedKey(SystemId id) =>
       '${_kStoryMilestonesSpawned}_${id.value}';
+  static String _onboardingStepKey(SystemId id) => '$_kOnboardingStepPrefix${id.value}';
+  static String _onboardingPersonaKey(SystemId id) => '$_kOnboardingPersonaPrefix${id.value}';
+
+  static OnboardingStep getOnboardingStep({SystemId? systemId}) {
+    final id = systemId ?? _activeSystemTyped();
+    final raw = Hive.box(settingsBox).get(_onboardingStepKey(id)) as String?;
+    return OnboardingStep.fromValue(raw);
+  }
+
+  static Future<void> setOnboardingStep(
+    OnboardingStep step, {
+    SystemId? systemId,
+  }) async {
+    final id = systemId ?? _activeSystemTyped();
+    await Hive.box(settingsBox).put(_onboardingStepKey(id), step.value);
+  }
+
+  static Map<String, dynamic>? getOnboardingPersonaRaw({SystemId? systemId}) {
+    final id = systemId ?? _activeSystemTyped();
+    final raw = Hive.box(settingsBox).get(_onboardingPersonaKey(id));
+    if (raw is! String || raw.trim().isEmpty) return null;
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      return m;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> setOnboardingPersonaRaw(
+    Map<String, dynamic> persona, {
+    SystemId? systemId,
+  }) async {
+    final id = systemId ?? _activeSystemTyped();
+    await Hive.box(settingsBox).put(
+      _onboardingPersonaKey(id),
+      jsonEncode(persona),
+    );
+  }
+
+  /// Нормализует шаг онбординга по текущим флагам (защитный переход).
+  static Future<void> normalizeOnboardingStep({SystemId? systemId}) async {
+    final id = systemId ?? _activeSystemTyped();
+    if (getHunter(systemId: id) == null) return;
+
+    // Новая кинематографичная цепочка (Фаза 7.5) приоритетнее legacy.
+    // Если пользователь ещё не прошёл философию — начинаем с лора.
+    if (!isSystemSelectionShown()) {
+      await setOnboardingStep(OnboardingStep.needLore, systemId: id);
+      return;
+    }
+
+    // Если философия уже выбрана, но мы ещё не завершили кинематографичный запуск —
+    // продолжаем дальше. (Awakening legacy сцену считаем уже заменённой.)
+    final step = getOnboardingStep(systemId: id);
+    if (step != OnboardingStep.done) {
+      // Если step пустой/устаревший — продолжаем с мастера.
+      if (step == OnboardingStep.needLore ||
+          step == OnboardingStep.needPhilosophySelection) {
+        await setOnboardingStep(OnboardingStep.needMasterEncounter, systemId: id);
+      }
+      return;
+    }
+  }
 
   // ============================================================
   // Multiverse meta: per-system keys (tagCounts/achievements/records).
@@ -586,8 +720,7 @@ class DatabaseService {
     return cleaned.isEmpty ? 'default' : cleaned;
   }
 
-  static String _keyFor(String prefix, String slug) =>
-      '${prefix}${_slugSafe(slug)}';
+  static String _keyFor(String prefix, String slug) => '$prefix${_slugSafe(slug)}';
 
   static List<String> getCustomSystemSlugs() {
     final box = Hive.box(settingsBox);
@@ -919,7 +1052,7 @@ class DatabaseService {
     await _spawnDungeonStageQuest(dungeon, stageIndex: 0);
   }
 
-  static String _dungeonTag(String dungeonId) => 'dungeon:${dungeonId}';
+  static String _dungeonTag(String dungeonId) => 'dungeon:$dungeonId';
   static String _dungeonStageTag(int stageIndex) => 'dungeon_stage:${stageIndex + 1}';
 
   static Future<void> _spawnDungeonStageQuest(
@@ -1234,6 +1367,37 @@ class DatabaseService {
     }
   }
 
+  static String getSocialDisplayName({Hunter? fallbackHunter}) {
+    final box = Hive.box(settingsBox);
+    final v = (box.get(_kSocialDisplayName) as String?)?.trim();
+    if (v != null && v.isNotEmpty) return v;
+    final fallback = (fallbackHunter?.name ?? getHunter()?.name ?? '').trim();
+    return fallback.isEmpty ? 'Player' : fallback;
+  }
+
+  static Future<void> setSocialDisplayName(String name) async {
+    final v = name.trim();
+    if (v.isEmpty) return;
+    await Hive.box(settingsBox).put(_kSocialDisplayName, v);
+  }
+
+  static String getOrCreateSocialDiscriminator() {
+    final box = Hive.box(settingsBox);
+    final existing = (box.get(_kSocialDiscriminator) as String?)?.trim();
+    if (existing != null && RegExp(r'^\d{4}$').hasMatch(existing)) {
+      return existing;
+    }
+    final d = (Random().nextInt(10000)).toString().padLeft(4, '0');
+    unawaited(box.put(_kSocialDiscriminator, d));
+    return d;
+  }
+
+  static String getSocialHandle({Hunter? fallbackHunter}) {
+    final name = getSocialDisplayName(fallbackHunter: fallbackHunter);
+    final d = getOrCreateSocialDiscriminator();
+    return '$name#$d';
+  }
+
   static String getThemeSkinId() {
     return Hive.box(settingsBox).get(_kThemeSkin, defaultValue: 'solo')
         as String;
@@ -1415,7 +1579,7 @@ class DatabaseService {
     final quests = getAllQuests(includeAllSystems: true);
     final activeHunter = getHunter();
 
-    bool _seededFor(SystemId id) {
+    bool seededFor(SystemId id) {
       final key = _tutorialAwakeningSeededKey(id);
       final v = settings.get(key);
       if (v == null) {
@@ -1428,7 +1592,7 @@ class DatabaseService {
       return v == true;
     }
 
-    bool _sceneShownFor(SystemId id) {
+    bool sceneShownFor(SystemId id) {
       final key = _awakeningTutorialSceneShownKey(id);
       final v = settings.get(key);
       if (v == null) {
@@ -1442,7 +1606,7 @@ class DatabaseService {
       return v == true;
     }
 
-    List<int>? _storySpawnedFor(SystemId id) {
+    List<int>? storySpawnedFor(SystemId id) {
       final key = _storyMilestonesSpawnedKey(id);
       final v = settings.get(key);
       if (v == null) {
@@ -1461,15 +1625,15 @@ class DatabaseService {
     }
 
     final tutorialSeededBySystem = <String, bool>{
-      for (final id in SystemId.values) id.value: _seededFor(id),
+      for (final id in SystemId.values) id.value: seededFor(id),
     };
     final tutorialSceneShownBySystem = <String, bool>{
-      for (final id in SystemId.values) id.value: _sceneShownFor(id),
+      for (final id in SystemId.values) id.value: sceneShownFor(id),
     };
     final storyMilestonesSpawnedBySystem = <String, List<int>>{
       for (final id in SystemId.values)
-        if (_storySpawnedFor(id) != null)
-          id.value: _storySpawnedFor(id)!,
+        if (storySpawnedFor(id) != null)
+          id.value: storySpawnedFor(id)!,
     };
 
     // Custom multi-world catalog (custom_<slug>).
@@ -1522,6 +1686,14 @@ class DatabaseService {
         'activeSystemId': settings.get(_kActiveSystemId, defaultValue: 'solo'),
         'systemSelectionShown':
             settings.get(_kSystemSelectionShown, defaultValue: false),
+        'onboardingStepBySystem': {
+          for (final id in SystemId.values)
+            id.value: settings.get(_onboardingStepKey(id)),
+        },
+        'onboardingPersonaBySystem': {
+          for (final id in SystemId.values)
+            id.value: settings.get(_onboardingPersonaKey(id)),
+        },
         'mageRuneLastUsed': settings.get(_kMageRuneLastUsed),
         'customSystemDictionary': settings.get(_kCustomSystemDictionary),
         'customSystemRulesPreset': settings.get(_kCustomSystemRulesPreset),
@@ -1598,6 +1770,31 @@ class DatabaseService {
       }
       if (rec['bestGold'] != null) {
         await box.put(_kBestGold, (rec['bestGold'] as num).toInt());
+      }
+    }
+
+    final meta0 = data['meta'];
+    if (meta0 is Map) {
+      final onboardingBySystem = meta0['onboardingStepBySystem'];
+      if (onboardingBySystem is Map) {
+        for (final entry in onboardingBySystem.entries) {
+          final id = SystemId.fromValue(entry.key.toString());
+          final raw = entry.value?.toString();
+          if (raw != null && raw.trim().isNotEmpty) {
+            await box.put(_onboardingStepKey(id), raw.trim());
+          }
+        }
+      }
+
+      final personaBySystem = meta0['onboardingPersonaBySystem'];
+      if (personaBySystem is Map) {
+        for (final entry in personaBySystem.entries) {
+          final id = SystemId.fromValue(entry.key.toString());
+          final raw = entry.value?.toString();
+          if (raw != null && raw.trim().isNotEmpty) {
+            await box.put(_onboardingPersonaKey(id), raw.trim());
+          }
+        }
       }
     }
     final meta = data['meta'];
@@ -1798,3 +1995,26 @@ class DatabaseService {
     }
   }
 }
+
+enum OnboardingStep {
+  needLore('need_lore'),
+  needPhilosophySelection('need_philosophy_selection'),
+  needMasterEncounter('need_master_encounter'),
+  needAiProcessing('need_ai_processing'),
+  done('done');
+
+  const OnboardingStep(this.value);
+  final String value;
+
+  static OnboardingStep fromValue(String? raw) {
+    final v = (raw ?? '').trim().toLowerCase();
+    // Migration from legacy steps.
+    if (v == 'need_system_selection') return OnboardingStep.needLore;
+    if (v == 'need_awakening_scene') return OnboardingStep.needAiProcessing;
+    for (final s in OnboardingStep.values) {
+      if (s.value == v) return s;
+    }
+    return OnboardingStep.needLore;
+  }
+}
+

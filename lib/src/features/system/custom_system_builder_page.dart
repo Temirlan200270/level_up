@@ -284,36 +284,47 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
   }
 
   String _colorToHex(Color c) {
-    final rgb = c.value & 0x00FFFFFF;
+    final rgb = c.toARGB32() & 0x00FFFFFF;
     return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
   }
 
   Future<void> _initializeFromPreview(GeneratedSystemThemeJson p) async {
-    _levelCtrl.text = p.terminology.levelName;
-    _expCtrl.text = p.terminology.expName;
-    _currencyCtrl.text = p.terminology.currencyName;
-    _voiceCtrl.text = p.terminology.systemName;
-    _toneCtrl.text = useTranslations(ref)('custom_ai_generated_tone');
-    _promptCtrl.text = p.aiPrompt;
-    setState(() => _preset = _presetFromRaw(p.rulesPreset));
+    final t = useTranslations(ref);
+    final backup = DatabaseService.exportGameBackupJson();
+    try {
+      _levelCtrl.text = p.terminology.levelName;
+      _expCtrl.text = p.terminology.expName;
+      _currencyCtrl.text = p.terminology.currencyName;
+      _voiceCtrl.text = p.terminology.systemName;
+      _toneCtrl.text = t('custom_ai_generated_tone');
+      _promptCtrl.text = p.aiPrompt;
+      setState(() => _preset = _presetFromRaw(p.rulesPreset));
 
-    final slug = _slugNormalize(_selectedSlug);
-    await DatabaseService.setCustomSystemThemeNameForSlug(slug, p.themeName);
-    await DatabaseService.setCustomSystemColorsHexForSlug(slug, {
-      'background': _colorToHex(p.colors.background),
-      'primary': _colorToHex(p.colors.primary),
-      'surface': _colorToHex(p.colors.surface),
-      'glow': _colorToHex(p.colors.glow),
-    });
+      final slug = _slugNormalize(_selectedSlug);
+      await DatabaseService.setCustomSystemThemeNameForSlug(slug, p.themeName);
+      await DatabaseService.setCustomSystemColorsHexForSlug(slug, {
+        'background': _colorToHex(p.colors.background),
+        'primary': _colorToHex(p.colors.primary),
+        'surface': _colorToHex(p.colors.surface),
+        'glow': _colorToHex(p.colors.glow),
+      });
 
-    await _save();
+      await _save();
 
-    // Активируем только что инициализированный мир и возвращаемся назад.
-    await ref
-        .read(activeSystemIdProvider.notifier)
-        .setCustomSystemSlug(slug);
-    await DatabaseService.setSystemSelectionShown(true);
-    if (context.mounted) Navigator.pop(context);
+      // Активируем только что инициализированный мир и возвращаемся назад.
+      await ref.read(activeSystemIdProvider.notifier).setCustomSystemSlug(slug);
+      await DatabaseService.setSystemSelectionShown(true);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      await DatabaseService.importGameBackupJson(backup);
+      ref.read(hunterProvider.notifier).reloadFromLocalDb();
+      ref.read(questsProvider.notifier).refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t('custom_ai_error')}: $e')),
+      );
+    }
   }
 
   @override
@@ -384,7 +395,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                               ),
                               const SizedBox(height: 12),
                               DropdownButtonFormField<String>(
-                                value: _selectedSlug,
+                                initialValue: _selectedSlug,
                                 items: [
                                   for (final s in _customSlugs)
                                     DropdownMenuItem(
@@ -522,7 +533,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                               ),
                               const SizedBox(height: 12),
                               DropdownButtonFormField<SystemBackgroundKind>(
-                                value: _bgKind,
+                                initialValue: _bgKind,
                                 items: const [
                                   DropdownMenuItem(
                                     value: SystemBackgroundKind.grid,
@@ -550,7 +561,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                               ),
                               const SizedBox(height: 10),
                               DropdownButtonFormField<SystemParticlesKind>(
-                                value: _particlesKind,
+                                initialValue: _particlesKind,
                                 items: const [
                                   DropdownMenuItem(
                                     value: SystemParticlesKind.sparkles,
@@ -807,7 +818,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                               ),
                               const SizedBox(height: 12),
                               DropdownButtonFormField<CustomRulesPreset>(
-                                value: _preset,
+                                initialValue: _preset,
                                 items: [
                                   for (final p in CustomRulesPreset.values)
                                     DropdownMenuItem(

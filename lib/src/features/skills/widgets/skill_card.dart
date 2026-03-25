@@ -31,10 +31,11 @@ class SkillCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = useTranslations(ref);
     final dict = ref.watch(activeSystemProvider).dictionary;
-    // Используем withValues вместо устаревшего withOpacity
-    Color cardColor = Colors.black.withValues(alpha: 0.8);
-    Color borderColor = Colors.grey.shade800;
-    Color textColor = Colors.grey.shade400;
+    final scheme = Theme.of(context).colorScheme;
+    // Используем токены темы вместо захардкоженных цветов.
+    Color cardColor = scheme.surface.withValues(alpha: 0.60);
+    Color borderColor = scheme.outline.withValues(alpha: 0.55);
+    Color textColor = scheme.onSurface.withValues(alpha: 0.78);
 
     Widget? actionButton;
     String buttonText = '';
@@ -43,7 +44,7 @@ class SkillCard extends ConsumerWidget {
     if (isLearned) {
       // СЛУЧАЙ 1: Изучено
       borderColor = branchColor;
-      textColor = Colors.white;
+      textColor = scheme.onSurface;
 
       // Получаем изученный навык с актуальным состоянием
       final hunter = ref.watch(hunterProvider);
@@ -111,8 +112,11 @@ class SkillCard extends ConsumerWidget {
         actionButton = _ScaleElevatedButton(
           onPressed: buttonOnPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: isOnCooldown ? Colors.grey.shade800 : branchColor,
-            foregroundColor: isOnCooldown ? Colors.grey : Colors.white,
+            backgroundColor: isOnCooldown
+                ? scheme.surface.withValues(alpha: 0.9)
+                : branchColor,
+            foregroundColor:
+                isOnCooldown ? scheme.onSurface.withValues(alpha: 0.55) : Colors.white,
           ),
           child: Text(buttonText),
         );
@@ -120,7 +124,7 @@ class SkillCard extends ConsumerWidget {
     } else if (isAvailable) {
       // СЛУЧАЙ 2: Доступно
       borderColor = branchColor.withValues(alpha: 0.5);
-      textColor = Colors.white70;
+      textColor = scheme.onSurface.withValues(alpha: 0.85);
       buttonText = '${t('learn')} (${skill.cost} SP)';
 
       buttonOnPressed = canAfford ? onLearn : null;
@@ -128,17 +132,21 @@ class SkillCard extends ConsumerWidget {
       actionButton = _ScaleElevatedButton(
         onPressed: buttonOnPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: canAfford ? branchColor : Colors.grey.shade800,
-          foregroundColor: canAfford ? Colors.white : Colors.grey,
+          backgroundColor: canAfford
+              ? branchColor
+              : scheme.surface.withValues(alpha: 0.9),
+          foregroundColor: canAfford
+              ? Colors.white
+              : scheme.onSurface.withValues(alpha: 0.55),
         ),
         child: Text(buttonText),
       );
     } else {
       // СЛУЧАЙ 3: Заблокировано
-      borderColor = Colors.grey.shade900;
-      cardColor = Colors.black.withValues(alpha: 0.5);
-      textColor = Colors.grey.shade600;
-      actionButton = const Icon(Icons.lock, color: Colors.grey);
+      borderColor = scheme.outline.withValues(alpha: 0.35);
+      cardColor = scheme.surface.withValues(alpha: 0.35);
+      textColor = scheme.onSurface.withValues(alpha: 0.45);
+      actionButton = Icon(Icons.lock, color: scheme.onSurface.withValues(alpha: 0.38));
     }
 
     return Container(

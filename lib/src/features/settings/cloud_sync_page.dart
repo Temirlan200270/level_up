@@ -146,7 +146,10 @@ class _CloudSyncPageState extends ConsumerState<CloudSyncPage> {
                 backgroundColor: Colors.transparent,
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
-                title: Text(t('cloud_sync_title'), style: promoAppBarTitleStyle()),
+                title: Text(
+                  t('cloud_sync_title'),
+                  style: promoAppBarTitleStyle(context),
+                ),
                 centerTitle: true,
               ),
               SliverToBoxAdapter(

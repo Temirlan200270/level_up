@@ -8,13 +8,21 @@ import '../../core/translations.dart';
 import '../../core/systems/system_id.dart';
 import '../../core/systems/systems_catalog.dart';
 import 'custom_system_builder_page.dart';
+import 'system_lore_fullscreen_page.dart';
 import '../../services/database_service.dart';
 import '../../services/providers.dart';
 
 class SystemSelectionScreen extends ConsumerStatefulWidget {
-  const SystemSelectionScreen({super.key, this.isFirstRun = false});
+  const SystemSelectionScreen({
+    super.key,
+    this.isFirstRun = false,
+    this.onClose,
+    this.showBackButton = true,
+  });
 
   final bool isFirstRun;
+  final VoidCallback? onClose;
+  final bool showBackButton;
 
   @override
   ConsumerState<SystemSelectionScreen> createState() =>
@@ -63,41 +71,13 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
     String Function(String, {Map<String, String>? params}) t,
     SystemId id,
   ) async {
-    final loreKey = switch (id) {
-      SystemId.solo => 'lore_solo',
-      SystemId.mage => 'lore_mage',
-      SystemId.cultivator => 'lore_cultivator',
-      SystemId.custom => 'lore_custom',
-    };
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: SoloLevelingColors.surface,
-          title: Text(
-            t('system_lore_title'),
-            style: GoogleFonts.manrope(
-              color: SoloLevelingColors.textPrimary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          content: Text(
-            t(loreKey),
-            style: GoogleFonts.manrope(
-              color: SoloLevelingColors.textSecondary,
-              height: 1.35,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(t('back')),
-            ),
-          ],
-        );
-      },
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SystemLoreFullscreenPage(
+          systemId: id,
+          title: t(_nameKey(id)),
+        ),
+      ),
     );
   }
 
@@ -118,11 +98,21 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                 child: Row(
                   children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      tooltip: t('back'),
-                    ),
+                    if (widget.showBackButton)
+                      IconButton(
+                        onPressed: () {
+                          final onClose = widget.onClose;
+                          if (onClose != null) {
+                            onClose();
+                            return;
+                          }
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        tooltip: t('back'),
+                      )
+                    else
+                      const SizedBox(width: 48),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -257,6 +247,11 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                                           .setSystem(id);
                                       await DatabaseService
                                           .setSystemSelectionShown(true);
+                                      if (widget.isFirstRun) {
+                                        await DatabaseService.setOnboardingStep(
+                                          OnboardingStep.needMasterEncounter,
+                                        );
+                                      }
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
@@ -266,7 +261,12 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                                             duration: const Duration(seconds: 2),
                                           ),
                                         );
-                                        Navigator.pop(context);
+                                        final onClose = widget.onClose;
+                                        if (onClose != null) {
+                                          onClose();
+                                        } else {
+                                          Navigator.pop(context);
+                                        }
                                       }
                                     },
                               child: Text(
@@ -302,7 +302,16 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                               OutlinedButton(
                                 onPressed: () async {
                                   await DatabaseService.setSystemSelectionShown(true);
-                                  if (context.mounted) Navigator.pop(context);
+                                  await DatabaseService.setOnboardingStep(
+                                    OnboardingStep.needMasterEncounter,
+                                  );
+                                  if (!context.mounted) return;
+                                  final onClose = widget.onClose;
+                                  if (onClose != null) {
+                                    onClose();
+                                  } else {
+                                    Navigator.pop(context);
+                                  }
                                 },
                                 child: Text(t('skip')),
                               ),

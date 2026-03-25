@@ -30,6 +30,12 @@ import '../core/systems/system_id.dart';
 import '../core/systems/custom_rules_preset.dart';
 import '../core/systems/systems_catalog.dart';
 import '../core/systems/system_rules.dart';
+import 'social_service.dart';
+import '../models/public_profile_model.dart';
+import '../models/leaderboard_entry_model.dart';
+
+/// Индекс вкладки в `HomeShell` (нужен для возврата из онбординга).
+final homeTabIndexProvider = StateProvider<int>((ref) => 0);
 
 // === РЕЗУЛЬТАТ ДРОПА ===
 /// Результат дропа для отображения в UI
@@ -131,6 +137,39 @@ final hunterProvider = StateNotifierProvider<HunterNotifier, Hunter?>((ref) {
   return HunterNotifier(ref);
 });
 
+// === SOCIAL (каркас) ===
+
+final socialServiceProvider = Provider<SocialService>((ref) {
+  return const SocialService();
+});
+
+final myPublicProfileProvider = FutureProvider<PublicProfile>((ref) async {
+  final hunter = ref.watch(hunterProvider);
+  final service = ref.watch(socialServiceProvider);
+  return service.getMyPublicProfile(hunter: hunter);
+});
+
+final profileByHandleProvider =
+    FutureProvider.family<PublicProfile?, String>((ref, handle) async {
+  final hunter = ref.watch(hunterProvider);
+  final service = ref.watch(socialServiceProvider);
+  return service.getProfileByHandle(handle, hunter: hunter);
+});
+
+final searchProfilesProvider =
+    FutureProvider.family<List<PublicProfile>, String>((ref, query) async {
+  final hunter = ref.watch(hunterProvider);
+  final service = ref.watch(socialServiceProvider);
+  return service.searchProfiles(query, hunter: hunter);
+});
+
+final leaderboardProvider = FutureProvider.family<List<LeaderboardEntry>,
+    SocialLeaderboardKind>((ref, kind) async {
+  final hunter = ref.watch(hunterProvider);
+  final service = ref.watch(socialServiceProvider);
+  return service.getLeaderboard(kind: kind, hunter: hunter);
+});
+
 class HunterNotifier extends StateNotifier<Hunter?> {
   HunterNotifier(this._ref) : super(null) {
     _loadHunter();
@@ -151,6 +190,7 @@ class HunterNotifier extends StateNotifier<Hunter?> {
     final hunter = await DatabaseService.createDefaultHunter(name);
     await DatabaseService.ensureAwakeningTutorialIfNeeded();
     await DatabaseService.setSystemSelectionShown(false);
+    await DatabaseService.setOnboardingStep(OnboardingStep.needLore);
     state = hunter;
   }
 

@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/promo_ui.dart';
 import '../../core/theme.dart';
-import '../../core/translations.dart';
 import '../../services/database_service.dart';
 import '../../models/dungeon_model.dart';
 

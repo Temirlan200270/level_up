@@ -15,6 +15,7 @@ class SkillsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     // Получаем данные охотника
     final hunter = ref.watch(hunterProvider);
     final learnedSkills = hunter?.skills ?? [];
@@ -42,14 +43,14 @@ class SkillsScreen extends ConsumerWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.amber),
+                  border: Border.all(color: scheme.secondary),
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.black.withValues(alpha: 0.3),
+                  color: scheme.surface.withValues(alpha: 0.55),
                 ),
                 child: Text(
                   'SP: $skillPoints',
-                  style: const TextStyle(
-                    color: Colors.amber,
+                  style: TextStyle(
+                    color: scheme.secondary,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -74,16 +75,16 @@ class SkillsScreen extends ConsumerWidget {
             Color branchColor;
             switch (branchName) {
               case 'assassin':
-                branchColor = Colors.redAccent;
+                branchColor = scheme.secondary;
                 break;
               case 'mage':
-                branchColor = Colors.blueAccent;
+                branchColor = scheme.primary;
                 break;
               case 'tank':
-                branchColor = Colors.greenAccent;
+                branchColor = scheme.tertiary;
                 break;
               default:
-                branchColor = Colors.grey;
+                branchColor = scheme.outline;
             }
 
             return Card(

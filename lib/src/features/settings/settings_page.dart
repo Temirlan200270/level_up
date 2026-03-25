@@ -40,7 +40,10 @@ class SettingsPage extends ConsumerWidget {
                 backgroundColor: Colors.transparent,
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
-                title: Text(t('settings'), style: promoAppBarTitleStyle()),
+                title: Text(
+                  t('settings'),
+                  style: promoAppBarTitleStyle(context),
+                ),
                 centerTitle: true,
               ),
               SliverToBoxAdapter(
@@ -81,6 +84,58 @@ class SettingsPage extends ConsumerWidget {
                         ),
                         const SizedBox(height: 28),
                       ],
+                      profileSectionTitle(context, t('account_title')),
+                      const SizedBox(height: 10),
+                      ProfileNeonCard(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          children: [
+                            PromoSettingsTile(
+                              icon: Icons.person_outline_rounded,
+                              title: t('account_title'),
+                              subtitle: t('account_subtitle'),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const AccountPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const PromoDivider(),
+                            PromoSettingsTile(
+                              icon: Icons.auto_awesome_rounded,
+                              title: t('system_philosophy'),
+                              subtitle: t(_systemIdKey(systemId)),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const SystemSelectionScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const PromoDivider(),
+                            PromoSettingsTile(
+                              icon: Icons.cloud_outlined,
+                              title: t('cloud_sync_title'),
+                              subtitle: t('cloud_sync_subtitle'),
+                              iconColor: SoloLevelingColors.textSecondary,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const CloudSyncPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 28),
                       profileSectionTitle(context, t('general')),
                       const SizedBox(height: 10),
                       ProfileNeonCard(
@@ -159,58 +214,6 @@ class SettingsPage extends ConsumerWidget {
                               title: t('tag_stats_title'),
                               subtitle: t('tag_stats_subtitle'),
                               onTap: () => _showTagStatsDialog(context, t),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      profileSectionTitle(context, t('account_title')),
-                      const SizedBox(height: 10),
-                      ProfileNeonCard(
-                        padding: EdgeInsets.zero,
-                        child: Column(
-                          children: [
-                            PromoSettingsTile(
-                              icon: Icons.person_outline_rounded,
-                              title: t('account_title'),
-                              subtitle: t('account_subtitle'),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const AccountPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                            const PromoDivider(),
-                            PromoSettingsTile(
-                              icon: Icons.auto_awesome_rounded,
-                              title: t('system_philosophy'),
-                              subtitle: t(_systemIdKey(systemId)),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const SystemSelectionScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            const PromoDivider(),
-                            PromoSettingsTile(
-                              icon: Icons.cloud_outlined,
-                              title: t('cloud_sync_title'),
-                              subtitle: t('cloud_sync_subtitle'),
-                              iconColor: SoloLevelingColors.textSecondary,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const CloudSyncPage(),
-                                  ),
-                                );
-                              },
                             ),
                           ],
                         ),
