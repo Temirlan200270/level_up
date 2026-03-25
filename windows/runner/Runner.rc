@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.expense.tracker" "\0"
-            VALUE "FileDescription", "expense_tracker_flutter" "\0"
+            VALUE "CompanyName", "com.levelup" "\0"
+            VALUE "FileDescription", "level_up" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "expense_tracker_flutter" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.expense.tracker. All rights reserved." "\0"
-            VALUE "OriginalFilename", "expense_tracker_flutter.exe" "\0"
-            VALUE "ProductName", "expense_tracker_flutter" "\0"
+            VALUE "InternalName", "level_up" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 com.levelup. All rights reserved." "\0"
+            VALUE "OriginalFilename", "level_up.exe" "\0"
+            VALUE "ProductName", "Level Up" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

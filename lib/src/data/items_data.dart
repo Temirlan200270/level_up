@@ -74,4 +74,15 @@ final List<Item> allGameItems = [
     slot: 'weapon',
     effects: {'xp_bonus': 0.05},
   ),
+  Item(
+    id: 'acc_scholar_ring',
+    name: 'Кольцо учёного',
+    description: '+3 к интеллекту (отображается в сумме статов).',
+    type: ItemType.equipment,
+    rarity: ItemRarity.epic,
+    buyPrice: 3500,
+    iconPath: 'assets/icons/icon_dagger.png',
+    slot: 'accessory',
+    effects: {'stat_intelligence': 3},
+  ),
 ];

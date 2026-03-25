@@ -12,8 +12,8 @@ class MessageModel {
     required this.content,
     required this.isFromSystem,
     DateTime? timestamp,
-  })  : id = id ?? const Uuid().v4(),
-        timestamp = timestamp ?? DateTime.now();
+  }) : id = id ?? const Uuid().v4(),
+       timestamp = timestamp ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
     return {
@@ -33,4 +33,3 @@ class MessageModel {
     );
   }
 }
-

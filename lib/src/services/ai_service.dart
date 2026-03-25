@@ -1,18 +1,52 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ai_provider_model.dart';
+import '../models/quest_model.dart';
+import '../core/systems/generated_system_theme_json.dart';
 
 /// Универсальный сервис для работы с различными AI провайдерами
 class AIService {
-  // Ключи для SharedPreferences
+  /// Дополнительные правила агента из ассета (добавляются ко всем system-промптам).
+  static String _agentRulesExtra = '';
+
+  /// Загрузить `assets/agent_rules.txt` до первых запросов (вызывать из `main`).
+  static Future<void> preloadAgentRules() async {
+    try {
+      _agentRulesExtra = await rootBundle.loadString('assets/agent_rules.txt');
+    } catch (_) {
+      _agentRulesExtra = '';
+    }
+  }
+
+  /// Объединяет пользовательские правила с системным промптом.
+  static String? _effectiveSystem(String? systemPrompt) {
+    if (_agentRulesExtra.isEmpty) return systemPrompt;
+    if (systemPrompt == null || systemPrompt.isEmpty) {
+      return _agentRulesExtra;
+    }
+    return '$_agentRulesExtra\n\n---\n\n$systemPrompt';
+  }
+
+  // Настройки провайдера/модели остаются в SharedPreferences (не секреты).
   static const String _prefsProvider = 'ai_provider';
   static const String _prefsModel = 'ai_model';
+  static const String _prefsKeysMigratedToSecure =
+      'ai_api_keys_migrated_secure_v1';
+
+  /// Легаси-ключи API в SharedPreferences (миграция в secure storage).
   static const String _prefsOpenAIKey = 'openai_api_key';
   static const String _prefsGeminiKey = 'gemini_api_key';
   static const String _prefsOpenRouterKey = 'openrouter_api_key';
   static const String _prefsHuggingFaceKey = 'huggingface_api_key';
   static const String _prefsClaudeKey = 'claude_api_key';
+
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  static String _secureKeyFor(AIProvider provider) =>
+      'ai_api_key_${provider.name}';
 
   // Базовые URL для каждого провайдера
   static const Map<AIProvider, String> _apiBaseUrls = {
@@ -47,7 +81,7 @@ class AIService {
   /// Получить текущую модель
   static Future<String> getModel() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_prefsModel) ?? 
+    return prefs.getString(_prefsModel) ??
         AIModels.getDefaultModel(await getProvider());
   }
 
@@ -57,9 +91,10 @@ class AIService {
     await prefs.setString(_prefsModel, model);
   }
 
-  /// Получить API ключ для провайдера
-  static Future<String?> getApiKey(AIProvider provider) async {
-    final prefs = await SharedPreferences.getInstance();
+  static String? _readLegacyApiKeyFromPrefs(
+    SharedPreferences prefs,
+    AIProvider provider,
+  ) {
     switch (provider) {
       case AIProvider.openai:
         return prefs.getString(_prefsOpenAIKey);
@@ -74,26 +109,59 @@ class AIService {
     }
   }
 
-  /// Сохранить API ключ для провайдера
-  static Future<void> setApiKey(AIProvider provider, String key) async {
-    final prefs = await SharedPreferences.getInstance();
+  static Future<void> _removeLegacyApiKeyFromPrefs(
+    SharedPreferences prefs,
+    AIProvider provider,
+  ) async {
     switch (provider) {
       case AIProvider.openai:
-        await prefs.setString(_prefsOpenAIKey, key);
+        await prefs.remove(_prefsOpenAIKey);
         break;
       case AIProvider.gemini:
-        await prefs.setString(_prefsGeminiKey, key);
+        await prefs.remove(_prefsGeminiKey);
         break;
       case AIProvider.openRouter:
-        await prefs.setString(_prefsOpenRouterKey, key);
+        await prefs.remove(_prefsOpenRouterKey);
         break;
       case AIProvider.huggingFace:
-        await prefs.setString(_prefsHuggingFaceKey, key);
+        await prefs.remove(_prefsHuggingFaceKey);
         break;
       case AIProvider.claude:
-        await prefs.setString(_prefsClaudeKey, key);
+        await prefs.remove(_prefsClaudeKey);
         break;
     }
+  }
+
+  /// Перенос ключей из SharedPreferences в `flutter_secure_storage` (один раз).
+  static Future<void> _ensureApiKeysMigratedFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_prefsKeysMigratedToSecure) == true) return;
+
+    for (final provider in AIProvider.values) {
+      final legacy = _readLegacyApiKeyFromPrefs(prefs, provider);
+      if (legacy != null && legacy.isNotEmpty) {
+        await _secureStorage.write(
+          key: _secureKeyFor(provider),
+          value: legacy,
+        );
+        await _removeLegacyApiKeyFromPrefs(prefs, provider);
+      }
+    }
+    await prefs.setBool(_prefsKeysMigratedToSecure, true);
+  }
+
+  /// Получить API ключ для провайдера
+  static Future<String?> getApiKey(AIProvider provider) async {
+    await _ensureApiKeysMigratedFromPrefs();
+    return _secureStorage.read(key: _secureKeyFor(provider));
+  }
+
+  /// Сохранить API ключ для провайдера
+  static Future<void> setApiKey(AIProvider provider, String key) async {
+    await _ensureApiKeysMigratedFromPrefs();
+    await _secureStorage.write(key: _secureKeyFor(provider), value: key);
+    final prefs = await SharedPreferences.getInstance();
+    await _removeLegacyApiKeyFromPrefs(prefs, provider);
   }
 
   /// Проверка наличия API ключа
@@ -122,11 +190,13 @@ class AIService {
       );
     }
 
+    final system = _effectiveSystem(systemPrompt);
+
     switch (currentProvider) {
       case AIProvider.openai:
         return _sendOpenAIMessage(
           message: message,
-          systemPrompt: systemPrompt,
+          systemPrompt: system,
           model: currentModel,
           apiKey: apiKey,
           temperature: temperature,
@@ -134,7 +204,7 @@ class AIService {
       case AIProvider.gemini:
         return _sendGeminiMessage(
           message: message,
-          systemPrompt: systemPrompt,
+          systemPrompt: system,
           model: currentModel,
           apiKey: apiKey,
           temperature: temperature,
@@ -142,7 +212,7 @@ class AIService {
       case AIProvider.openRouter:
         return _sendOpenRouterMessage(
           message: message,
-          systemPrompt: systemPrompt,
+          systemPrompt: system,
           model: currentModel,
           apiKey: apiKey,
           temperature: temperature,
@@ -150,7 +220,7 @@ class AIService {
       case AIProvider.huggingFace:
         return _sendHuggingFaceMessage(
           message: message,
-          systemPrompt: systemPrompt,
+          systemPrompt: system,
           model: currentModel,
           apiKey: apiKey,
           temperature: temperature,
@@ -158,7 +228,7 @@ class AIService {
       case AIProvider.claude:
         return _sendClaudeMessage(
           message: message,
-          systemPrompt: systemPrompt,
+          systemPrompt: system,
           model: currentModel,
           apiKey: apiKey,
           temperature: temperature,
@@ -175,7 +245,7 @@ class AIService {
     required double temperature,
   }) async {
     final messages = <Map<String, String>>[];
-    
+
     if (systemPrompt != null) {
       messages.add({'role': 'system', 'content': systemPrompt});
     }
@@ -206,21 +276,27 @@ class AIService {
     required double temperature,
   }) async {
     final contents = <Map<String, dynamic>>[];
-    
+
     if (systemPrompt != null) {
       contents.add({
         'role': 'user',
-        'parts': [{'text': systemPrompt}],
+        'parts': [
+          {'text': systemPrompt},
+        ],
       });
       contents.add({
         'role': 'model',
-        'parts': [{'text': 'Понял. Готов к работе.'}],
+        'parts': [
+          {'text': 'Понял. Готов к работе.'},
+        ],
       });
     }
-    
+
     contents.add({
       'role': 'user',
-      'parts': [{'text': message}],
+      'parts': [
+        {'text': message},
+      ],
     });
 
     final response = await http.post(
@@ -230,9 +306,7 @@ class AIService {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'contents': contents,
-        'generationConfig': {
-          'temperature': temperature,
-        },
+        'generationConfig': {'temperature': temperature},
       }),
     );
 
@@ -258,7 +332,7 @@ class AIService {
     required double temperature,
   }) async {
     final messages = <Map<String, String>>[];
-    
+
     if (systemPrompt != null) {
       messages.add({'role': 'system', 'content': systemPrompt});
     }
@@ -290,7 +364,7 @@ class AIService {
     required String apiKey,
     required double temperature,
   }) async {
-    final fullMessage = systemPrompt != null 
+    final fullMessage = systemPrompt != null
         ? '$systemPrompt\n\n$message'
         : message;
 
@@ -302,10 +376,7 @@ class AIService {
       },
       body: jsonEncode({
         'inputs': fullMessage,
-        'parameters': {
-          'temperature': temperature,
-          'return_full_text': false,
-        },
+        'parameters': {'temperature': temperature, 'return_full_text': false},
       }),
     );
 
@@ -328,10 +399,7 @@ class AIService {
     required double temperature,
   }) async {
     final messages = <Map<String, dynamic>>[];
-    messages.add({
-      'role': 'user',
-      'content': message,
-    });
+    messages.add({'role': 'user', 'content': message});
 
     final body = <String, dynamic>{
       'model': model,
@@ -378,18 +446,103 @@ class AIService {
     } else {
       final error = jsonDecode(response.body) as Map<String, dynamic>;
       throw Exception(
-        error['error']?['message'] ?? 
-        'Ошибка при запросе к $providerName API: ${response.statusCode}',
+        error['error']?['message'] ??
+            'Ошибка при запросе к $providerName API: ${response.statusCode}',
       );
     }
+  }
+
+  /// Жёсткие потолки наград для ручного квеста (после ответа модели).
+  static Map<String, dynamic> clampManualQuestBalance(
+    Map<String, dynamic> raw,
+    int hunterLevel,
+  ) {
+    final lv = hunterLevel.clamp(1, 999);
+    final maxExp = (18 + lv * 4).clamp(15, 130);
+    final maxGold = (12 + lv * 6).clamp(8, 280);
+    final d = ((raw['difficulty'] as num?)?.toInt() ?? 2).clamp(1, 5);
+    var exp = (raw['experienceReward'] as num?)?.toInt() ?? 20;
+    var gold = (raw['goldReward'] as num?)?.toInt() ?? 10;
+    var sp = (raw['statPointsReward'] as num?)?.toInt() ?? 0;
+    exp = exp.clamp(5, maxExp);
+    gold = gold.clamp(0, maxGold);
+    sp = sp.clamp(0, 3);
+
+    return {
+      'difficulty': d,
+      'experienceReward': exp,
+      'goldReward': gold,
+      'statPointsReward': sp,
+      'mandatory': raw['mandatory'] == true,
+    };
+  }
+
+  /// Балансировщик ручного квеста: только JSON, низкая температура, затем [clampManualQuestBalance].
+  static Future<Map<String, dynamic>> balanceManualQuestDraft({
+    required String title,
+    required String description,
+    required QuestType questType,
+    required int hunterLevel,
+    int playerDifficulty = 2,
+    int playerGold = 10,
+    int playerExp = 20,
+    int playerStatPoints = 0,
+    bool playerMandatory = false,
+  }) async {
+    final typeName = questType.name;
+    const systemPrompt =
+        '''Ты — Система Solo Leveling (античит-балансировщик).
+Оцени черновик квеста охотника и верни СТРОГО один JSON без текста вокруг:
+{
+  "difficulty": целое 1-5,
+  "experienceReward": целое,
+  "goldReward": целое (фиксированное золото за завершение),
+  "statPointsReward": целое 0-3,
+  "mandatory": true или false (true только при явной критичности/дедлайне в описании),
+  "rankLabel": краткая строка ранга E..S (например "C-Rank")
+}
+Правила:
+- Уровень охотника ограничивает адекватность наград; сложные реальные задачи = выше difficulty.
+- Тривиальным задачам не давай завышенных наград.
+- Штрафной тип penalty сюда не попадает — не предлагай его.''';
+
+    final userPrompt =
+        '''Уровень охотника: $hunterLevel
+Тип квеста: $typeName
+Черновик игрока — сложность: $playerDifficulty, опыт: $playerExp, золото: $playerGold, очки статов: $playerStatPoints, обязательный: $playerMandatory
+
+Название: $title
+Описание: $description
+
+Верни только JSON.''';
+
+    final response = await sendMessage(
+      message: userPrompt,
+      systemPrompt: systemPrompt,
+      temperature: 0.25,
+    );
+
+    Map<String, dynamic> parsed;
+    try {
+      parsed = jsonDecode(response) as Map<String, dynamic>;
+    } catch (_) {
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(response);
+      if (jsonMatch == null) {
+        throw Exception('ИИ не вернул JSON для баланса');
+      }
+      parsed = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
+    }
+    return clampManualQuestBalance(parsed, hunterLevel);
   }
 
   /// Генерация квеста через ИИ
   static Future<Map<String, dynamic>> generateQuest({
     String? hunterLevel,
     String? hunterStats,
+    String? lowestStatsFocus,
   }) async {
-    final systemPrompt = '''Ты - Система из манги Solo Leveling. Твоя задача - генерировать интересные квесты для охотника.
+    final systemPrompt =
+        '''Ты - Система из манги Solo Leveling. Твоя задача - генерировать интересные квесты для охотника.
 
 Формат ответа должен быть строго в JSON:
 {
@@ -397,14 +550,17 @@ class AIService {
   "description": "Описание квеста",
   "type": "daily|weekly|special|story",
   "experienceReward": число (10-50),
-  "statPointsReward": число (0-5)
+  "statPointsReward": число (0-5),
+  "goldReward": число (0-40, фиксированное золото за завершение)
 }
 
 Квесты должны быть реалистичными и выполнимыми в реальной жизни. Используй стиль Solo Leveling - драматичный, но мотивирующий.''';
 
-    final userPrompt = '''Сгенерируй один интересный квест для охотника.
+    final userPrompt =
+        '''Сгенерируй один интересный квест для охотника.
 ${hunterLevel != null ? 'Уровень охотника: $hunterLevel' : ''}
 ${hunterStats != null ? 'Характеристики: $hunterStats' : ''}
+${lowestStatsFocus != null && lowestStatsFocus.isNotEmpty ? 'ФОКУС (обязательно учти): $lowestStatsFocus' : ''}
 
 Квест должен быть выполнимым в реальной жизни и мотивирующим. Верни только JSON, без дополнительного текста.''';
 
@@ -441,24 +597,38 @@ ${hunterStats != null ? 'Характеристики: $hunterStats' : ''}
     required String context,
     String? hunterName,
     int? hunterLevel,
+    String? philosophyVoiceName,
+    String? philosophyToneHint,
+    Map<String, String>? philosophyTerms,
   }) async {
-    final systemPrompt = '''Ты - Система из манги Solo Leveling. Ты общаешься с охотником, который развивается и выполняет квесты.
+    final voice = philosophyVoiceName ?? 'Система';
+    final tone = philosophyToneHint ?? 'загадочно, но полезно';
+    final terms = philosophyTerms ?? const {};
+    final termsBlock = terms.isEmpty
+        ? ''
+        : '''
+
+Термины активной философии:
+- Уровень: ${terms['level'] ?? 'Уровень'}
+- Опыт/прогресс: ${terms['experience'] ?? 'Опыт'}
+- Валюта: ${terms['currency'] ?? 'Золото'}
+- Энергия: ${terms['energy'] ?? 'Энергия'}
+- Навыки: ${terms['skills'] ?? 'Навыки'}''';
+
+    final systemPrompt = '''Ты — ${voice}. Ты общаешься с пользователем, который развивается и выполняет квесты.
 
 Твой стиль общения:
-- Загадочный и мистический
-- Мотивирующий и поддерживающий
-- Используй терминологию Solo Leveling (уровни, статы, квесты, опыт)
+- Тон: $tone
 - Будь кратким, но атмосферным
-- Отвечай на русском языке
+- Отвечай на русском языке$termsBlock''';
 
-Отвечай как настоящая Система - загадочно, но полезно.''';
-
-    final userPrompt = '''${hunterName != null ? 'Охотник: $hunterName' : 'Охотник'}
+    final userPrompt =
+        '''${hunterName != null ? 'Охотник: $hunterName' : 'Охотник'}
 ${hunterLevel != null ? 'Уровень: $hunterLevel' : ''}
 
 Контекст: $context
 
-Ответь как Система.''';
+Ответь в роли: $voice.''';
 
     return await sendMessage(
       message: userPrompt,
@@ -466,5 +636,99 @@ ${hunterLevel != null ? 'Уровень: $hunterLevel' : ''}
       temperature: 0.9,
     );
   }
-}
 
+  /// AI-конструктор: генерирует JSON (строго) для кастомной философии/темы.
+  ///
+  /// Примечание: приложение пока использует терминологию и rules preset,
+  /// а цвета/токены (background/primary/surface/glow) будут применены после
+  /// расширения ThemeExtension на полные UI-панели.
+  static Future<GeneratedSystemThemeJson> generateCustomSystemThemeJson({
+    required String systemIdea,
+    required String rulesPreset,
+    String systemIdValue = 'custom_ai_generated',
+    Map<String, String>? exampleTerminology,
+  }) async {
+    final terminologyExampleBlock = (exampleTerminology == null ||
+            exampleTerminology.isEmpty)
+        ? ''
+        : '''
+
+Пример терминов:
+exp: ${exampleTerminology['exp'] ?? ''}
+level: ${exampleTerminology['level'] ?? ''}
+currency: ${exampleTerminology['currency'] ?? ''}
+sp: ${exampleTerminology['sp'] ?? ''}
+system: ${exampleTerminology['system'] ?? ''}''';
+
+    final schema = '''
+{
+  "system_id": "$systemIdValue",
+  "theme_name": "string",
+  "terminology": {
+    "exp": "string",
+    "level": "string",
+    "currency": "string",
+    "sp": "string",
+    "system": "string"
+  },
+  "colors": {
+    "background_hex": "#RRGGBB",
+    "primary_hex": "#RRGGBB",
+    "surface_hex": "#RRGGBB",
+    "glow_hex": "#RRGGBB"
+  },
+  "ai_prompt": "string",
+  "rules_preset": "$rulesPreset"
+}''';
+
+    final systemPrompt = '''
+Ты — генератор игровых систем.
+Верни ТОЛЬКО валидный JSON-объект без markdown и без комментариев.
+Строго следуй схеме.
+Цвета возвращай как HEX строку формата #RRGGBB.
+
+Схема JSON:
+$schema''';
+
+    final response = await sendMessage(
+      message: '''
+Идея системы:
+$systemIdea$terminologyExampleBlock
+
+rules_preset: $rulesPreset
+system_id: $systemIdValue
+''',
+      systemPrompt: systemPrompt,
+      temperature: 0.6,
+    );
+
+    try {
+      final decoded = jsonDecode(response);
+      if (decoded is Map<String, dynamic>) {
+        return GeneratedSystemThemeJson.fromMap(decoded);
+      }
+      if (decoded is Map) {
+        return GeneratedSystemThemeJson.fromMap(
+          decoded.map((k, v) => MapEntry(k.toString(), v)),
+        );
+      }
+      throw const FormatException('AI JSON is not an object');
+    } catch (_) {
+      // Если модель добавила мусор, пытаемся вытащить первый объект JSON.
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(response);
+      if (jsonMatch == null) {
+        throw Exception('Не удалось найти JSON в ответе AI');
+      }
+      final decoded2 = jsonDecode(jsonMatch.group(0)!);
+      if (decoded2 is Map<String, dynamic>) {
+        return GeneratedSystemThemeJson.fromMap(decoded2);
+      }
+      if (decoded2 is Map) {
+        return GeneratedSystemThemeJson.fromMap(
+          decoded2.map((k, v) => MapEntry(k.toString(), v)),
+        );
+      }
+      throw const FormatException('AI JSON is not an object');
+    }
+  }
+}

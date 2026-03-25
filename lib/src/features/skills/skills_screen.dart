@@ -23,7 +23,10 @@ class SkillsScreen extends ConsumerWidget {
 
     // Группируем навыки по веткам (assassin, mage, tank)
     // Используем initialSkills из skills_data.dart
-    final skillsByBranch = groupBy(initialSkills, (Skill skill) => skill.branch);
+    final skillsByBranch = groupBy(
+      initialSkills,
+      (Skill skill) => skill.branch,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -34,7 +37,10 @@ class SkillsScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(right: 16.0),
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.amber),
                   borderRadius: BorderRadius.circular(12),
@@ -43,9 +49,9 @@ class SkillsScreen extends ConsumerWidget {
                 child: Text(
                   'SP: $skillPoints',
                   style: const TextStyle(
-                    color: Colors.amber, 
+                    color: Colors.amber,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16
+                    fontSize: 16,
                   ),
                 ),
               ),
@@ -57,93 +63,99 @@ class SkillsScreen extends ConsumerWidget {
         top: false,
         child: ListView(
           padding: const EdgeInsets.all(16.0),
-        children: skillsByBranch.entries.map((entry) {
-          final branchName = entry.key;
-          final branchSkills = entry.value;
+          children: skillsByBranch.entries.map((entry) {
+            final branchName = entry.key;
+            final branchSkills = entry.value;
 
-          // Сортируем навыки внутри ветки по уровню (tier), чтобы шли по порядку
-          branchSkills.sort((a, b) => a.tier.compareTo(b.tier));
+            // Сортируем навыки внутри ветки по уровню (tier), чтобы шли по порядку
+            branchSkills.sort((a, b) => a.tier.compareTo(b.tier));
 
-          // Определяем цвет для ветки
-          Color branchColor;
-          switch (branchName) {
-            case 'assassin':
-              branchColor = Colors.redAccent;
-              break;
-            case 'mage':
-              branchColor = Colors.blueAccent;
-              break;
-            case 'tank':
-              branchColor = Colors.greenAccent;
-              break;
-            default:
-              branchColor = Colors.grey;
-          }
+            // Определяем цвет для ветки
+            Color branchColor;
+            switch (branchName) {
+              case 'assassin':
+                branchColor = Colors.redAccent;
+                break;
+              case 'mage':
+                branchColor = Colors.blueAccent;
+                break;
+              case 'tank':
+                branchColor = Colors.greenAccent;
+                break;
+              default:
+                branchColor = Colors.grey;
+            }
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16.0),
-            // Исправлено: withOpacity -> withValues (для новых версий Flutter)
-            color: branchColor.withValues(alpha: 0.1),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: branchColor.withValues(alpha: 0.3)),
-            ),
-            child: ExpansionTile(
-              initiallyExpanded: true,
-              iconColor: branchColor,
-              collapsedIconColor: branchColor,
-              title: Text(
-                _getBranchDisplayName(branchName, t),
-                style: TextStyle(
-                  color: branchColor, 
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+            return Card(
+              margin: const EdgeInsets.only(bottom: 16.0),
+              // Исправлено: withOpacity -> withValues (для новых версий Flutter)
+              color: branchColor.withValues(alpha: 0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: branchColor.withValues(alpha: 0.3)),
               ),
-              children: branchSkills.map((skill) {
-                // 1. Проверяем, изучен ли навык
-                final isLearned = learnedSkills.any((s) => s.id == skill.id);
-                
-                // 2. Проверяем, хватает ли очков (только если еще не изучен)
-                final canAfford = skillPoints >= skill.cost;
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                iconColor: branchColor,
+                collapsedIconColor: branchColor,
+                title: Text(
+                  _getBranchDisplayName(branchName, t),
+                  style: TextStyle(
+                    color: branchColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                children: branchSkills.map((skill) {
+                  // 1. Проверяем, изучен ли навык
+                  final isLearned = learnedSkills.any((s) => s.id == skill.id);
 
-                // 3. Проверяем доступность (родитель + уровень)
-                bool isParentLearned = true;
-                if (skill.parentId != null) {
-                  isParentLearned = learnedSkills.any((s) => s.id == skill.parentId);
-                }
-                final isAvailable = hunterLevel >= 1 && isParentLearned; // Упростили проверку уровня
+                  // 2. Проверяем, хватает ли очков (только если еще не изучен)
+                  final canAfford = skillPoints >= skill.cost;
 
-                return SkillCard(
-                  skill: skill,
-                  branchColor: branchColor,
-                  isLearned: isLearned,
-                  isAvailable: isAvailable,
-                  canAfford: canAfford,
-                  onLearn: () {
-                    // Логика нажатия на кнопку "Изучить"
-                    if (isAvailable && canAfford && !isLearned) {
-                      ref.read(hunterProvider.notifier).learnSkill(skill);
-                      
-                      // Показываем уведомление
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(t('skill_learned', params: {'name': skill.name})),
-                          backgroundColor: branchColor,
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    } else if (!canAfford) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                         SnackBar(content: Text(t('not_enough_sp'))),
-                      );
-                    }
-                  },
-                );
-              }).toList(),
-            ),
-          );
-        }).toList(),
+                  // 3. Проверяем доступность (родитель + уровень)
+                  bool isParentLearned = true;
+                  if (skill.parentId != null) {
+                    isParentLearned = learnedSkills.any(
+                      (s) => s.id == skill.parentId,
+                    );
+                  }
+                  final isAvailable =
+                      hunterLevel >= 1 &&
+                      isParentLearned; // Упростили проверку уровня
+
+                  return SkillCard(
+                    skill: skill,
+                    branchColor: branchColor,
+                    isLearned: isLearned,
+                    isAvailable: isAvailable,
+                    canAfford: canAfford,
+                    onLearn: () {
+                      // Логика нажатия на кнопку "Изучить"
+                      if (isAvailable && canAfford && !isLearned) {
+                        ref.read(hunterProvider.notifier).learnSkill(skill);
+
+                        // Показываем уведомление
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              t('skill_learned', params: {'name': skill.name}),
+                            ),
+                            backgroundColor: branchColor,
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      } else if (!canAfford) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(t('not_enough_sp'))),
+                        );
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

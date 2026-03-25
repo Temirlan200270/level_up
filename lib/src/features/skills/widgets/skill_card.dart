@@ -7,13 +7,14 @@ import '../../../models/enums.dart';
 // Убедись, что путь правильный (относительно папки widgets)
 import '../../../models/skill_model.dart';
 import '../../../services/providers.dart';
+import '../../../core/systems/system_id.dart';
 
 class SkillCard extends ConsumerWidget {
   final Skill skill;
   final Color branchColor; // Цвет ветки для стилизации
-  final bool isLearned;    // Изучен ли навык
-  final bool isAvailable;  // Доступен ли для изучения
-  final bool canAfford;    // Хватает ли очков навыков
+  final bool isLearned; // Изучен ли навык
+  final bool isAvailable; // Доступен ли для изучения
+  final bool canAfford; // Хватает ли очков навыков
   final VoidCallback onLearn; // Функция для изучения
 
   const SkillCard({
@@ -29,11 +30,12 @@ class SkillCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = useTranslations(ref);
+    final dict = ref.watch(activeSystemProvider).dictionary;
     // Используем withValues вместо устаревшего withOpacity
     Color cardColor = Colors.black.withValues(alpha: 0.8);
     Color borderColor = Colors.grey.shade800;
     Color textColor = Colors.grey.shade400;
-    
+
     Widget? actionButton;
     String buttonText = '';
     VoidCallback? buttonOnPressed;
@@ -42,20 +44,21 @@ class SkillCard extends ConsumerWidget {
       // СЛУЧАЙ 1: Изучено
       borderColor = branchColor;
       textColor = Colors.white;
-      
+
       // Получаем изученный навык с актуальным состоянием
       final hunter = ref.watch(hunterProvider);
       final learnedSkill = hunter?.skills.firstWhere(
         (s) => s.id == skill.id,
         orElse: () => skill,
       );
-      
+
       // Проверяем cooldown для активных навыков
-      final isOnCooldown = learnedSkill != null && 
-                          learnedSkill.lastUsed != null && 
-                          !learnedSkill.isReady;
+      final isOnCooldown =
+          learnedSkill != null &&
+          learnedSkill.lastUsed != null &&
+          !learnedSkill.isReady;
       final remainingCooldown = learnedSkill?.remainingCooldown;
-      
+
       if (skill.type == SkillType.active) {
         if (isOnCooldown && remainingCooldown != null) {
           // Навык на перезарядке
@@ -67,11 +70,23 @@ class SkillCard extends ConsumerWidget {
         } else {
           buttonText = t('activate');
           buttonOnPressed = () {
-            ref.read(hunterProvider.notifier).activateSkill(learnedSkill ?? skill);
-            
+            final learned = learnedSkill ?? skill;
+            ref.read(hunterProvider.notifier).activateSkill(learned);
+            if (skill.id == 'focus') {
+              final dur =
+                  learned.durationSeconds ?? skill.durationSeconds ?? 1800;
+              final systemId = ref.read(activeSystemIdProvider);
+              ref.read(focusSessionProvider.notifier).state = FocusSessionState(
+                endsAt: DateTime.now().add(Duration(seconds: dur)),
+                closedMeditation: systemId == SystemId.cultivator,
+              );
+            }
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(t('skill_activated', params: {'name': skill.name})), 
+                content: Text(
+                  t('skill_activated', params: {'name': skill.name}),
+                ),
                 backgroundColor: branchColor,
                 duration: const Duration(seconds: 1),
               ),
@@ -82,16 +97,18 @@ class SkillCard extends ConsumerWidget {
         buttonText = t('upgrade');
         buttonOnPressed = () {
           if ((learnedSkill?.level ?? skill.level) < skill.maxLevel) {
-            ref.read(hunterProvider.notifier).spendSkillPointAndUpgradeSkill(learnedSkill ?? skill);
+            ref
+                .read(hunterProvider.notifier)
+                .spendSkillPointAndUpgradeSkill(learnedSkill ?? skill);
           }
         };
       }
 
       final currentLevel = learnedSkill?.level ?? skill.level;
       if (skill.type == SkillType.passive && currentLevel >= skill.maxLevel) {
-        actionButton = null; 
+        actionButton = null;
       } else {
-        actionButton = ElevatedButton(
+        actionButton = _ScaleElevatedButton(
           onPressed: buttonOnPressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: isOnCooldown ? Colors.grey.shade800 : branchColor,
@@ -100,16 +117,15 @@ class SkillCard extends ConsumerWidget {
           child: Text(buttonText),
         );
       }
-      
     } else if (isAvailable) {
       // СЛУЧАЙ 2: Доступно
       borderColor = branchColor.withValues(alpha: 0.5);
       textColor = Colors.white70;
       buttonText = '${t('learn')} (${skill.cost} SP)';
-      
+
       buttonOnPressed = canAfford ? onLearn : null;
-      
-      actionButton = ElevatedButton(
+
+      actionButton = _ScaleElevatedButton(
         onPressed: buttonOnPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: canAfford ? branchColor : Colors.grey.shade800,
@@ -117,7 +133,6 @@ class SkillCard extends ConsumerWidget {
         ),
         child: Text(buttonText),
       );
-      
     } else {
       // СЛУЧАЙ 3: Заблокировано
       borderColor = Colors.grey.shade900;
@@ -142,7 +157,9 @@ class SkillCard extends ConsumerWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isLearned ? branchColor.withValues(alpha: 0.2) : Colors.transparent,
+                color: isLearned
+                    ? branchColor.withValues(alpha: 0.2)
+                    : Colors.transparent,
               ),
               child: Icon(
                 skill.type == SkillType.active ? Icons.flash_on : Icons.shield,
@@ -150,9 +167,9 @@ class SkillCard extends ConsumerWidget {
                 size: 32,
               ),
             ),
-            
+
             const SizedBox(width: 16),
-            
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,11 +183,12 @@ class SkillCard extends ConsumerWidget {
                       );
                       final displayLevel = learnedSkill?.level ?? skill.level;
                       return Text(
-                        '${skill.name}${isLearned ? ' (${t('level')} $displayLevel)' : ''}',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: textColor, 
-                          fontWeight: FontWeight.bold
-                        ),
+                        '${skill.name}${isLearned ? ' (${dict.levelName} $displayLevel)' : ''}',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: textColor,
+                              fontWeight: FontWeight.bold,
+                            ),
                       );
                     },
                   ),
@@ -178,23 +196,67 @@ class SkillCard extends ConsumerWidget {
                   Text(
                     skill.description,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: textColor.withValues(alpha: 0.8)
+                      color: textColor.withValues(alpha: 0.8),
                     ),
                   ),
                   if (!isLearned && !isAvailable && skill.parentId != null) ...[
                     const SizedBox(height: 6),
                     Text(
                       t('requires_parent_skill'),
-                      style: TextStyle(color: Colors.red.shade300, fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.red.shade300,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ],
               ),
             ),
-            
+
             const SizedBox(width: 8),
             if (actionButton != null) actionButton,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Кнопка с лёгким сжатием при удержании (отклик интерфейса).
+class _ScaleElevatedButton extends StatefulWidget {
+  const _ScaleElevatedButton({
+    required this.onPressed,
+    required this.style,
+    required this.child,
+  });
+
+  final VoidCallback? onPressed;
+  final ButtonStyle? style;
+  final Widget child;
+
+  @override
+  State<_ScaleElevatedButton> createState() => _ScaleElevatedButtonState();
+}
+
+class _ScaleElevatedButtonState extends State<_ScaleElevatedButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: enabled ? (_) => setState(() => _pressed = true) : null,
+      onPointerUp: enabled ? (_) => setState(() => _pressed = false) : null,
+      onPointerCancel: enabled ? (_) => setState(() => _pressed = false) : null,
+      child: AnimatedScale(
+        scale: _pressed ? 0.95 : 1.0,
+        duration: const Duration(milliseconds: 90),
+        curve: Curves.easeOut,
+        child: ElevatedButton(
+          onPressed: widget.onPressed,
+          style: widget.style,
+          child: widget.child,
         ),
       ),
     );

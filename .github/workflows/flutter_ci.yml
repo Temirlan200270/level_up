@@ -1,0 +1,24 @@
+# Анализ и тесты при push/PR (нужен репозиторий на GitHub).
+name: Flutter CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  analyze-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: pub get
+        run: flutter pub get
+      - name: analyze
+        run: flutter analyze lib
+      - name: test
+        run: flutter test

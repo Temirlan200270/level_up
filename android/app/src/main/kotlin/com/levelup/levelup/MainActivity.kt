@@ -1,5 +1,6 @@
-package com.expense.tracker.expense_tracker_flutter
+package com.levelup.levelup
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity()
+

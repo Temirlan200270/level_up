@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../core/translations.dart';
 import '../../models/message_model.dart';
+import '../../models/hunter_model.dart';
 import '../../services/ai_service.dart';
 import '../../services/providers.dart';
 
@@ -39,10 +40,10 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
     final hunter = ref.read(hunterProvider);
     if (hunter != null) {
       final welcomeMessage = MessageModel(
-        content: t('system_welcome', params: {
-          'name': hunter.name,
-          'level': hunter.level.toString(),
-        }),
+        content: t(
+          'system_welcome',
+          params: {'name': hunter.name, 'level': hunter.level.toString()},
+        ),
         isFromSystem: true,
       );
       setState(() {
@@ -57,10 +58,7 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
     if (text.isEmpty || _isLoading) return;
 
     // Добавляем сообщение пользователя
-    final userMessage = MessageModel(
-      content: text,
-      isFromSystem: false,
-    );
+    final userMessage = MessageModel(content: text, isFromSystem: false);
     setState(() {
       _messages.add(userMessage);
       _isLoading = true;
@@ -70,18 +68,28 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
 
     try {
       final hunter = ref.read(hunterProvider);
-      
+      final cfg = ref.read(activeSystemProvider);
+      final rules = ref.read(activeSystemRulesProvider);
+
       // Генерируем ответ от Системы
       final response = await AIService.generateSystemMessage(
         context: text,
         hunterName: hunter?.name,
         hunterLevel: hunter?.level,
+        philosophyVoiceName: cfg.aiVoiceName,
+        philosophyToneHint: rules.aiSystemPromptHint(
+          hunter ?? Hunter(name: ''),
+        ),
+        philosophyTerms: {
+          'level': cfg.dictionary.levelName,
+          'experience': cfg.dictionary.experienceName,
+          'currency': cfg.dictionary.currencyName,
+          'energy': cfg.dictionary.energyName,
+          'skills': cfg.dictionary.skillsName,
+        },
       );
 
-      final systemMessage = MessageModel(
-        content: response,
-        isFromSystem: true,
-      );
+      final systemMessage = MessageModel(content: response, isFromSystem: true);
 
       setState(() {
         _messages.add(systemMessage);
@@ -91,10 +99,12 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
     } catch (e) {
       final t = useTranslations(ref);
       setState(() {
-        _messages.add(MessageModel(
-          content: '${t('error')}: $e\n\n${t('no_api_key_message')}',
-          isFromSystem: true,
-        ));
+        _messages.add(
+          MessageModel(
+            content: '${t('error')}: $e\n\n${t('no_api_key_message')}',
+            isFromSystem: true,
+          ),
+        );
         _isLoading = false;
       });
       _scrollToBottom();
@@ -172,10 +182,7 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
             AppBar(
               title: Row(
                 children: [
-                  Icon(
-                    Icons.smart_toy,
-                    color: SoloLevelingColors.neonBlue,
-                  ),
+                  Icon(Icons.smart_toy, color: SoloLevelingColors.neonBlue),
                   const SizedBox(width: 8),
                   Text(t('system')),
                 ],
@@ -272,7 +279,9 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide(
-                            color: SoloLevelingColors.neonBlue.withValues(alpha: 0.5),
+                            color: SoloLevelingColors.neonBlue.withValues(
+                              alpha: 0.5,
+                            ),
                             width: 1,
                           ),
                         ),
@@ -318,8 +327,9 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Row(
-        mainAxisAlignment:
-            isSystem ? MainAxisAlignment.start : MainAxisAlignment.end,
+        mainAxisAlignment: isSystem
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isSystem) ...[
@@ -413,4 +423,3 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 }
-

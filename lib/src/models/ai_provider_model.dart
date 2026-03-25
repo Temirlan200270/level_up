@@ -1,11 +1,5 @@
 /// AI провайдеры
-enum AIProvider {
-  openai,
-  gemini,
-  openRouter,
-  huggingFace,
-  claude,
-}
+enum AIProvider { openai, gemini, openRouter, huggingFace, claude }
 
 /// Модели для каждого провайдера
 class AIModels {
@@ -89,4 +83,3 @@ class AIModels {
     }
   }
 }
-

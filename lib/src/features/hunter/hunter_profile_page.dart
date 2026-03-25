@@ -1,10 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../../core/theme.dart';
 import '../../core/translations.dart';
+import '../../core/hunter_display.dart';
+import '../../core/monarch_mode.dart';
 import '../../models/hunter_model.dart';
+import '../../models/achievement_model.dart';
+import '../../core/systems/system_dictionary.dart';
 import '../../services/providers.dart';
-import '../system/system_chat_page.dart';
+import '../../services/database_service.dart';
+import '../quests/quests_page.dart';
+import '../shop/shop_screen.dart';
+import 'widgets/profile_analytics_section.dart';
+import '../../core/promo_ui.dart';
+
+/// Локализованные строки с опциональными подстановками `{key}`.
+typedef AppTr = String Function(String key, {Map<String, String>? params});
 
 class HunterProfilePage extends ConsumerStatefulWidget {
   const HunterProfilePage({super.key});
@@ -15,6 +28,7 @@ class HunterProfilePage extends ConsumerStatefulWidget {
 
 class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
   final TextEditingController _nameController = TextEditingController();
+  bool _awakeningSceneScheduled = false;
 
   @override
   void dispose() {
@@ -25,62 +39,279 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
   @override
   Widget build(BuildContext context) {
     final hunter = ref.watch(hunterProvider);
+    ref.watch(worldEventTickProvider);
     final t = useTranslations(ref);
+    final dict = ref.watch(activeSystemProvider).dictionary;
 
     // Если охотника нет, показываем экран создания
     if (hunter == null) {
       return _buildCreateHunterScreen(context, ref);
     }
 
+    if (!_awakeningSceneScheduled &&
+        DatabaseService.isSystemSelectionShown() &&
+        DatabaseService.canShowAwakeningTutorialScene()) {
+      _awakeningSceneScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!context.mounted) return;
+        await _showAwakeningTutorialSceneDialog(context, t);
+      });
+    }
+
     return Scaffold(
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              floating: true,
-              title: Text(t('hunter_profile')),
-              centerTitle: true,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.smart_toy),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SystemChatPage(),
-                      ),
-                    );
-                  },
-                  tooltip: t('system'),
+      backgroundColor: Colors.transparent,
+      body: ProfileBackdrop(
+        child: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                floating: true,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                title: Text(
+                  t('hunter_profile'),
+                  style: GoogleFonts.manrope(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: SoloLevelingColors.textPrimary,
+                  ),
                 ),
-              ],
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Имя и уровень
-                    _buildLevelCard(context, hunter, t),
-                    const SizedBox(height: 16),
-                    
-                    // Прогресс опыта
-                    _buildExperienceBar(context, hunter, t),
-                    const SizedBox(height: 24),
-                    
-                    // Статы
-                    _buildStatsPanel(context, hunter, t),
-                    const SizedBox(height: 24),
-                    
-                    // Информация
-                    _buildInfoCard(context, hunter, t),
-                  ],
+                centerTitle: true,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ShopScreen(),
+                        ),
+                      );
+                    },
+                    tooltip: t('shop'),
+                  ),
+                ],
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildLevelCard(context, hunter, t, dict),
+                      if (hunter.activeBuffs.any(
+                        (b) => b.effectId == 'penalty_zone' && !b.isExpired,
+                      )) ...[
+                        const SizedBox(height: 12),
+                        ProfileNeonCard(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.gpp_maybe_rounded,
+                                color: SoloLevelingColors.error,
+                                size: 26,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  t('penalty_zone_active_banner'),
+                                  style: GoogleFonts.manrope(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: SoloLevelingColors.error,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (DatabaseService.isBloodMoonActive) ...[
+                        const SizedBox(height: 12),
+                        ProfileNeonCard(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.nightlight_round,
+                                color: SoloLevelingColors.error
+                                    .withValues(alpha: 0.95),
+                                size: 26,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  t('blood_moon_active_banner'),
+                                  style: GoogleFonts.manrope(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: SoloLevelingColors.textPrimary,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (MonarchMode.isUnlocked(hunter.level) &&
+                          DatabaseService.isStoryGateCompleted(50)) ...[
+                        const SizedBox(height: 12),
+                        ProfileNeonCard(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.whatshot_rounded,
+                                color: SoloLevelingColors.neonPurple
+                                    .withValues(alpha: 0.95),
+                                size: 26,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  t('monarch_mode_active_banner'),
+                                  style: GoogleFonts.manrope(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: SoloLevelingColors.textPrimary,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 28),
+                      _buildStatsSectionHeader(context, hunter, t),
+                      const SizedBox(height: 10),
+                      _buildStatsPanel(context, hunter, t),
+                      const SizedBox(height: 28),
+                      ProfileAnalyticsSection(hunter: hunter),
+                      const SizedBox(height: 28),
+                      _buildAchievementsSection(context, ref, t),
+                      const SizedBox(height: 28),
+                      profileSectionTitle(context, t('info')),
+                      const SizedBox(height: 10),
+                      _buildInfoCard(context, hunter, t),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _showAwakeningTutorialSceneDialog(
+    BuildContext context,
+    String Function(String, {Map<String, String>? params}) t,
+  ) async {
+    var step = 0;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          return AlertDialog(
+            backgroundColor: SoloLevelingColors.surface,
+            title: Text(
+              t('awakening_scene_title'),
+              style: const TextStyle(color: SoloLevelingColors.textPrimary),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (step == 0) ...[
+                  Text(
+                    t('awakening_scene_step0'),
+                    style: const TextStyle(color: SoloLevelingColors.textSecondary),
+                  ),
+                  const SizedBox(height: 10),
+                  const Icon(Icons.auto_awesome_rounded,
+                      color: SoloLevelingColors.neonPurple),
+                ] else if (step == 1) ...[
+                  Text(
+                    t('awakening_scene_step1'),
+                    style: const TextStyle(color: SoloLevelingColors.textSecondary),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded,
+                          color: SoloLevelingColors.neonGreen),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          t('awakening_scene_step1_hint'),
+                          style: const TextStyle(color: SoloLevelingColors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  Text(
+                    t('awakening_scene_step2'),
+                    style: const TextStyle(color: SoloLevelingColors.textSecondary),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.whatshot_rounded,
+                          color: SoloLevelingColors.neonBlue),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          t('awakening_scene_step2_hint'),
+                          style: const TextStyle(color: SoloLevelingColors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              if (step > 0)
+                TextButton(
+                  onPressed: () {
+                    setLocal(() => step--);
+                  },
+                  child: Text(t('awakening_scene_back')),
+                ),
+              TextButton(
+                onPressed: () async {
+                  if (step < 2) {
+                    setLocal(() => step++);
+                    return;
+                  }
+
+                  await DatabaseService.setAwakeningTutorialSceneShown(true);
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
+                  if (!ctx.mounted) return;
+                  Navigator.of(ctx).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const QuestsPage(),
+                    ),
+                  );
+                },
+                child: Text(
+                  step < 2
+                      ? t('awakening_scene_next')
+                      : t('awakening_scene_finish'),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -89,218 +320,482 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
   Widget _buildCreateHunterScreen(BuildContext context, WidgetRef ref) {
     final t = useTranslations(ref);
     return Scaffold(
+      backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
-                child: IntrinsicHeight(
+      body: ProfileBackdrop(
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0,
+                      vertical: 28.0,
+                    ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        const Spacer(flex: 1),
-                        Icon(
-                          Icons.person_add,
-                          size: 80,
-                          color: SoloLevelingColors.neonBlue,
+                        ProfilePillBadge(
+                          label: t('profile_onboarding_badge'),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 28),
+                        Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: SoloLevelingColors.neonBlue.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                  blurRadius: 28,
+                                ),
+                                BoxShadow(
+                                  color: SoloLevelingColors.neonPurple
+                                      .withValues(alpha: 0.25),
+                                  blurRadius: 36,
+                                  spreadRadius: -4,
+                                ),
+                              ],
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: SoloLevelingColors.neonBlue,
+                                  width: 2,
+                                ),
+                                gradient: RadialGradient(
+                                  colors: [
+                                    SoloLevelingColors.neonPurple.withValues(
+                                      alpha: 0.35,
+                                    ),
+                                    SoloLevelingColors.background,
+                                  ],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.person_add_rounded,
+                                size: 44,
+                                color: SoloLevelingColors.neonBlue,
+                              ),
+                            ),
+                        ),
+                        const SizedBox(height: 28),
                         Text(
                           t('create_hunter'),
-                          style: Theme.of(context).textTheme.displaySmall,
+                          style: GoogleFonts.manrope(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            height: 1.2,
+                            color: SoloLevelingColors.textPrimary,
+                          ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Text(
                           t('enter_name'),
-                          style: Theme.of(context).textTheme.bodyLarge,
+                          style: GoogleFonts.manrope(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: SoloLevelingColors.textSecondary,
+                            height: 1.45,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 32),
-                        TextField(
-                          controller: _nameController,
-                          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-                          decoration: InputDecoration(
-                            labelText: t('hunter_name'),
-                            labelStyle: const TextStyle(color: SoloLevelingColors.textSecondary),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: SoloLevelingColors.neonBlue,
-                                width: 2,
-                              ),
+                        ProfileNeonCard(
+                          padding: const EdgeInsets.all(18),
+                          child: TextField(
+                            controller: _nameController,
+                            style: GoogleFonts.manrope(
+                              color: SoloLevelingColors.textPrimary,
+                              fontSize: 16,
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: SoloLevelingColors.neonBlue,
-                                width: 1,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: SoloLevelingColors.surfaceLight
+                                  .withValues(alpha: 0.5),
+                              labelText: t('hunter_name'),
+                              labelStyle: GoogleFonts.manrope(
+                                color: SoloLevelingColors.textSecondary,
                               ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: SoloLevelingColors.neonBlue,
-                                width: 2,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(
+                                  color: SoloLevelingColors.neonBlue
+                                      .withValues(alpha: 0.35),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: SoloLevelingColors.neonBlue,
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: () async {
-                            if (_nameController.text.trim().isNotEmpty) {
-                              try {
-                                await ref.read(hunterProvider.notifier).createHunter(
-                                  _nameController.text.trim(),
-                                );
-                                // UI обновится автоматически через ref.watch
-                              } catch (e) {
-                                if (context.mounted) {
-                                  final t = useTranslations(ref);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('${t('hunter_creation_error')}: $e'),
-                                      backgroundColor: SoloLevelingColors.error,
-                                    ),
-                                  );
-                                }
-                              }
-                            } else {
-                              if (context.mounted) {
-                                final t = useTranslations(ref);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(t('enter_hunter_name')),
-                                    backgroundColor: SoloLevelingColors.warning,
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: SoloLevelingColors.neonBlue.withValues(
+                                  alpha: 0.4,
+                                ),
+                                blurRadius: 22,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                                onPressed: () async {
+                                  if (_nameController.text.trim().isNotEmpty) {
+                                    try {
+                                      await ref
+                                          .read(hunterProvider.notifier)
+                                          .createHunter(
+                                            _nameController.text.trim(),
+                                          );
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        final t = useTranslations(ref);
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              '${t('hunter_creation_error')}: $e',
+                                            ),
+                                            backgroundColor:
+                                                SoloLevelingColors.error,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  } else {
+                                    if (context.mounted) {
+                                      final t = useTranslations(ref);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(t('enter_hunter_name')),
+                                          backgroundColor:
+                                              SoloLevelingColors.warning,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
                                   ),
-                                );
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 48,
-                              vertical: 16,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  textStyle: GoogleFonts.manrope(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              child: Text(t('start_journey').toUpperCase()),
                             ),
                           ),
-                          child: Text(t('start_journey')),
                         ),
-                        const Spacer(flex: 2),
+                        const SizedBox(height: 12),
                       ],
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  // Карточка уровня
-  Widget _buildLevelCard(BuildContext context, Hunter hunter, String Function(String) t) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Row(
-          children: [
-            // Иконка уровня
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: SoloLevelingColors.neonBlue,
-                  width: 3,
+  /// Подпись класса для интерфейса: скрытый класс или «нет».
+  String _hunterClassLine(Hunter hunter, AppTr t) {
+    final id = hunter.hiddenClassId;
+    if (id == null || id.isEmpty) return t('hunter_class_none');
+    if (id == 'coder') return t('hidden_class_coder');
+    return id;
+  }
+
+  Widget _buildStatsSectionHeader(
+    BuildContext context,
+    Hunter hunter,
+    AppTr t,
+  ) {
+    final ap = hunter.stats.availablePoints;
+    final accent = SoloLevelingColors.warning;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(child: profileSectionTitle(context, t('stats'))),
+        Text(
+          '${t('stats_free_points_header')}: ',
+          style: GoogleFonts.manrope(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+            color: SoloLevelingColors.textSecondary,
+          ),
+        ),
+        Text(
+          '$ap',
+          style: GoogleFonts.rajdhani(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: ap > 0 ? accent : SoloLevelingColors.textTertiary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Карточка уровня + прогресс опыта в одном блоке
+  Widget _buildLevelCard(
+    BuildContext context,
+    Hunter hunter,
+    AppTr t,
+    SystemDictionary dict,
+  ) {
+    final rank = hunterRankCode(hunter.level);
+    final titleKey = hunterTitleKeyForRank(rank);
+    final monoNum = GoogleFonts.rajdhani(
+      fontWeight: FontWeight.w800,
+      color: SoloLevelingColors.textPrimary,
+    );
+
+    return ProfileNeonCard(
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 86,
+                height: 86,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: SoloLevelingColors.neonBlue.withValues(
+                        alpha: 0.35,
+                      ),
+                      blurRadius: 20,
+                    ),
+                    BoxShadow(
+                      color: SoloLevelingColors.neonPurple.withValues(
+                        alpha: 0.22,
+                      ),
+                      blurRadius: 26,
+                      spreadRadius: -2,
+                    ),
+                  ],
                 ),
-                gradient: const RadialGradient(
-                  colors: [
-                    SoloLevelingColors.neonBlue,
-                    SoloLevelingColors.background,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: SoloLevelingColors.neonBlue,
+                      width: 2,
+                    ),
+                    gradient: RadialGradient(
+                      colors: [
+                        SoloLevelingColors.neonPurple.withValues(alpha: 0.4),
+                        SoloLevelingColors.background,
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                    child: ProfileGradientText(
+                      text: '${hunter.level}',
+                      style: GoogleFonts.rajdhani(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hunter.name,
+                      style: GoogleFonts.manrope(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: SoloLevelingColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${t('hunter_rank_short')}: $rank',
+                      style: monoNum.copyWith(fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${t('hunter_class_short')}: ${_hunterClassLine(hunter, t)}',
+                      style: GoogleFonts.manrope(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: SoloLevelingColors.neonBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${t('hunter_title_short')}: ${t(titleKey)}',
+                      style: GoogleFonts.manrope(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: SoloLevelingColors.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              child: Center(
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
                 child: Text(
-                  '${hunter.level}',
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: SoloLevelingColors.textPrimary,
+                  '${dict.experienceName}: ${hunter.currentExp.toInt()} / ${hunter.experienceToNextLevel.toInt()}',
+                  style: GoogleFonts.manrope(
+                    fontSize: 13,
+                    color: SoloLevelingColors.textSecondary,
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 24),
-            // Имя и информация
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hunter.name,
-                    style: Theme.of(context).textTheme.displaySmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${t('level')} ${hunter.level}',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: SoloLevelingColors.neonBlue,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${t('experience')}: ${hunter.currentExp.toInt()} / ${hunter.experienceToNextLevel.toInt()}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
+              Text(
+                '${(hunter.levelProgress * 100).toStringAsFixed(1)}%',
+                style: GoogleFonts.rajdhani(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: SoloLevelingColors.neonBlue,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ProfileGradientBar(value: hunter.levelProgress),
+        ],
       ),
     );
   }
 
-  // Полоса прогресса опыта
-  Widget _buildExperienceBar(BuildContext context, Hunter hunter, String Function(String) t) {
+  String _statLabel(String key, AppTr t) {
+    final o = DatabaseService.getStatLabelOverrides();
+    final custom = o[key];
+    if (custom != null && custom.isNotEmpty) return custom;
+    return t(key);
+  }
+
+  Widget _buildAchievementsSection(
+    BuildContext context,
+    WidgetRef ref,
+    AppTr t,
+  ) {
+    final unlocked = ref.watch(unlockedAchievementIdsProvider).toSet();
+    if (unlocked.isEmpty) return const SizedBox.shrink();
+
+    final lang = ref.watch(languageProvider);
+    final defs = kAllAchievements
+        .where((a) => unlocked.contains(a.id))
+        .toList();
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              t('experience_to_next'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            Text(
-              '${(hunter.levelProgress * 100).toStringAsFixed(1)}%',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: SoloLevelingColors.neonBlue,
+        profileSectionTitle(context, t('achievements')),
+        const SizedBox(height: 10),
+        ProfileNeonCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ...defs.map(
+                (a) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: SoloLevelingColors.neonPurple.withValues(
+                            alpha: 0.15,
+                          ),
+                          border: Border.all(
+                            color: SoloLevelingColors.neonBlue.withValues(
+                              alpha: 0.25,
+                            ),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.military_tech_rounded,
+                          color: SoloLevelingColors.neonBlue,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              lang == 'en' ? a.titleEn : a.titleRu,
+                              style: GoogleFonts.manrope(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: SoloLevelingColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              lang == 'en' ? a.descEn : a.descRu,
+                              style: GoogleFonts.manrope(
+                                fontSize: 13,
+                                height: 1.4,
+                                color: SoloLevelingColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: hunter.levelProgress,
-            minHeight: 12,
-            backgroundColor: SoloLevelingColors.surfaceLight,
-            valueColor: const AlwaysStoppedAnimation<Color>(
-              SoloLevelingColors.neonBlue,
-            ),
+            ],
           ),
         ),
       ],
@@ -308,227 +803,264 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
   }
 
   // Панель статов
-  Widget _buildStatsPanel(BuildContext context, Hunter hunter, String Function(String) t) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              t('stats'),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            _buildStatBar(
-              context,
-              t('strength'),
-              hunter.stats.strength,
-              Icons.fitness_center,
-              SoloLevelingColors.neonPink,
-              'strength',
-              hunter,
-              t,
-            ),
-            const SizedBox(height: 12),
-            _buildStatBar(
-              context,
-              t('agility'),
-              hunter.stats.agility,
-              Icons.speed,
-              SoloLevelingColors.neonGreen,
-              'agility',
-              hunter,
-              t,
-            ),
-            const SizedBox(height: 12),
-            _buildStatBar(
-              context,
-              t('intelligence'),
-              hunter.stats.intelligence,
-              Icons.psychology,
-              SoloLevelingColors.neonPurple,
-              'intelligence',
-              hunter,
-              t,
-            ),
-            const SizedBox(height: 12),
-            _buildStatBar(
-              context,
-              t('vitality'),
-              hunter.stats.vitality,
-              Icons.favorite,
-              SoloLevelingColors.error,
-              'vitality',
-              hunter,
-              t,
-            ),
-            if (hunter.stats.availablePoints > 0) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: SoloLevelingColors.neonBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: SoloLevelingColors.neonBlue,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.stars,
-                      color: SoloLevelingColors.neonBlue,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${t('available_points')}: ${hunter.stats.availablePoints}',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: SoloLevelingColors.neonBlue,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
+  Widget _buildStatsPanel(BuildContext context, Hunter hunter, AppTr t) {
+    final d = hunter.displayStats;
+    final b = hunter.stats;
+    return ProfileNeonCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildStatBar(
+            context,
+            _statLabel('strength', t),
+            d.strength,
+            b.strength,
+            Icons.fitness_center,
+            SoloLevelingColors.neonPink,
+            'strength',
+            hunter,
+            t,
+          ),
+          const SizedBox(height: 12),
+          _buildStatBar(
+            context,
+            _statLabel('agility', t),
+            d.agility,
+            b.agility,
+            Icons.speed,
+            SoloLevelingColors.neonGreen,
+            'agility',
+            hunter,
+            t,
+          ),
+          const SizedBox(height: 12),
+          _buildStatBar(
+            context,
+            _statLabel('intelligence', t),
+            d.intelligence,
+            b.intelligence,
+            Icons.psychology,
+            SoloLevelingColors.neonPurple,
+            'intelligence',
+            hunter,
+            t,
+          ),
+          const SizedBox(height: 12),
+          _buildStatBar(
+            context,
+            _statLabel('vitality', t),
+            d.vitality,
+            b.vitality,
+            Icons.favorite,
+            SoloLevelingColors.error,
+            'vitality',
+            hunter,
+            t,
+          ),
+        ],
       ),
     );
   }
 
-  // Полоса стата
+  // Строка характеристики: иконка, название, +, число (без мини-прогресс-бара)
   Widget _buildStatBar(
     BuildContext context,
     String label,
-    int value,
+    int displayValue,
+    int baseValue,
     IconData icon,
     Color color,
     String statName,
     Hunter hunter,
-    String Function(String) t,
+    AppTr t,
   ) {
     final hasAvailablePoints = hunter.stats.availablePoints > 0;
-    
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  Row(
-                    children: [
-                      // Кнопка всегда видна, но неактивна если нет очков
-                      IconButton(
-                        icon: Icon(
-                          Icons.add_circle_outline,
-                          size: 20,
-                          color: hasAvailablePoints
-                              ? color
-                              : color.withValues(alpha: 0.3),
-                        ),
-                        onPressed: hasAvailablePoints
-                            ? () {
-                                ref.read(hunterProvider.notifier).allocateStatPoint(statName);
-                              }
-                            : null,
-                        tooltip: hasAvailablePoints
-                            ? t('add_point')
-                            : t('no_points_available'),
-                      ),
-                      Text(
-                        '$value',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: color,
-                          fontWeight: FontWeight.bold,
+    final bonus = displayValue - baseValue;
+    final valueStyle = GoogleFonts.rajdhani(
+      fontSize: 18,
+      fontWeight: FontWeight.w800,
+      color: color,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: GoogleFonts.manrope(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: SoloLevelingColors.textPrimary,
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: value / 100, // Максимум 100 для визуализации
-                  minHeight: 6,
-                  backgroundColor: SoloLevelingColors.surfaceLight,
-                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                    ),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      icon: Icon(
+                        hasAvailablePoints
+                            ? Icons.add_circle
+                            : Icons.add_circle_outline,
+                        size: 24,
+                        color: hasAvailablePoints
+                            ? color
+                            : color.withValues(alpha: 0.28),
+                      ),
+                      onPressed: hasAvailablePoints
+                          ? () {
+                              ref
+                                  .read(hunterProvider.notifier)
+                                  .allocateStatPoint(statName);
+                            }
+                          : null,
+                      tooltip: hasAvailablePoints
+                          ? t('add_point')
+                          : t('no_points_available'),
+                    ),
+                    SizedBox(
+                      width: 52,
+                      child: Text(
+                        '$displayValue',
+                        textAlign: TextAlign.right,
+                        style: valueStyle,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                if (bonus > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      t(
+                        'equipment_stat_bonus',
+                        params: {'n': bonus.toString()},
+                      ),
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        color: SoloLevelingColors.textTertiary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   // Информационная карточка
-  Widget _buildInfoCard(BuildContext context, Hunter hunter, String Function(String) t) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              t('info'),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              context,
-              t('registration_date'),
-              _formatDate(hunter.createdAt),
-            ),
-            if (hunter.lastLoginAt != null) ...[
-              const SizedBox(height: 8),
-              _buildInfoRow(
-                context,
-                t('last_login'),
-                _formatDate(hunter.lastLoginAt!),
-              ),
-            ],
+  Widget _buildInfoCard(BuildContext context, Hunter hunter, AppTr t) {
+    return ProfileNeonCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoRow(
+            context,
+            t('registration_date'),
+            _formatDate(hunter.createdAt),
+          ),
+          if (hunter.lastLoginAt != null) ...[
             const SizedBox(height: 8),
             _buildInfoRow(
               context,
-              t('total_stats'),
-              '${hunter.stats.total}',
+              t('last_login'),
+              _formatDate(hunter.lastLoginAt!),
             ),
           ],
-        ),
+          const SizedBox(height: 8),
+          _buildInfoRow(
+            context,
+            t('total_stats'),
+            '${hunter.displayStats.total}',
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow(
+            context,
+            t('daily_streak'),
+            '${hunter.dailyQuestStreak}',
+          ),
+          if ((DatabaseService.getGuildName() ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              context,
+              t('guild_name'),
+              DatabaseService.getGuildName()!.trim(),
+            ),
+          ],
+          if (hunter.hiddenClassId != null) ...[
+            const SizedBox(height: 8),
+            _buildInfoRow(
+              context,
+              t('hidden_class'),
+              hunter.hiddenClassId == 'coder'
+                  ? t('hidden_class_coder')
+                  : hunter.hiddenClassId!,
+            ),
+          ],
+          const SizedBox(height: 8),
+          _buildInfoRow(
+            context,
+            t('record_level'),
+            '${DatabaseService.getRecordBestLevel()}',
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow(
+            context,
+            t('record_gold'),
+            '${DatabaseService.getRecordBestGold()}',
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildInfoRow(BuildContext context, String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: SoloLevelingColors.neonBlue,
-            fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.manrope(
+                fontSize: 14,
+                color: SoloLevelingColors.textSecondary,
+              ),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: GoogleFonts.manrope(
+                fontSize: 14,
+                color: SoloLevelingColors.neonBlue,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -536,4 +1068,3 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
     return '${date.day}.${date.month}.${date.year}';
   }
 }
-

@@ -25,11 +25,7 @@ class GoldDisplay extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const Icon(
-            Icons.monetization_on,
-            color: Colors.amber,
-            size: 24,
-          ),
+          const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
         ],
       ),
     );

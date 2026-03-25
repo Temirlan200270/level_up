@@ -1,9 +1,9 @@
 // Модель статов охотника
 class Stats {
-  final int strength;      // Сила
-  final int agility;        // Ловкость
-  final int intelligence;    // Интеллект
-  final int vitality;       // Живучесть
+  final int strength; // Сила
+  final int agility; // Ловкость
+  final int intelligence; // Интеллект
+  final int vitality; // Живучесть
   final int availablePoints; // Доступные очки для распределения
 
   const Stats({
@@ -14,8 +14,19 @@ class Stats {
     this.availablePoints = 0,
   });
 
-  // Общая сумма всех статов
+  /// Сумма базовых статов без availablePoints.
   int get total => strength + agility + intelligence + vitality;
+
+  /// Пассивный бонус от экипировки (availablePoints не меняется).
+  Stats mergeEquipmentBonus(Stats bonus) {
+    return Stats(
+      strength: strength + bonus.strength,
+      agility: agility + bonus.agility,
+      intelligence: intelligence + bonus.intelligence,
+      vitality: vitality + bonus.vitality,
+      availablePoints: availablePoints,
+    );
+  }
 
   // Конвертация в Map для хранения
   Map<String, dynamic> toMap() {
@@ -61,7 +72,7 @@ class Stats {
     if (availablePoints < points || points <= 0) {
       return this;
     }
-    
+
     switch (statName) {
       case 'strength':
         return copyWith(
@@ -88,4 +99,3 @@ class Stats {
     }
   }
 }
-

@@ -4,11 +4,7 @@ class Buff {
   final dynamic value; // Значение, например, 2.0
   final DateTime expiresAt; // Время окончания действия
 
-  Buff({
-    required this.effectId,
-    required this.value,
-    required this.expiresAt,
-  });
+  Buff({required this.effectId, required this.value, required this.expiresAt});
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 

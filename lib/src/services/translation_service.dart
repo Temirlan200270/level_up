@@ -63,10 +63,10 @@ final translationsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 });
 
 /// Провайдер для функции перевода
-final translateProvider = Provider<String Function(String, {Map<String, String>? params})>((ref) {
-  ref.watch(translationsProvider); // Следим за изменениями переводов
-  return (String key, {Map<String, String>? params}) {
-    return TranslationService.translate(key, params: params);
-  };
-});
-
+final translateProvider =
+    Provider<String Function(String, {Map<String, String>? params})>((ref) {
+      ref.watch(translationsProvider); // Следим за изменениями переводов
+      return (String key, {Map<String, String>? params}) {
+        return TranslationService.translate(key, params: params);
+      };
+    });

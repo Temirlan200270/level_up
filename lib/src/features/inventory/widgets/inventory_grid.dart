@@ -15,9 +15,7 @@ class InventoryGrid extends ConsumerWidget {
 
     if (inventory == null || inventory.isEmpty) {
       return SliverToBoxAdapter(
-        child: Center(
-          child: Text(t('inventory_empty')),
-        ),
+        child: Center(child: Text(t('inventory_empty'))),
       );
     }
 
@@ -28,13 +26,10 @@ class InventoryGrid extends ConsumerWidget {
         crossAxisSpacing: 10.0,
         childAspectRatio: 1.0,
       ),
-      delegate: SliverChildBuilderDelegate(
-        (BuildContext context, int index) {
-          final slot = inventory[index];
-          return ItemSlotCard(slot: slot);
-        },
-        childCount: inventory.length,
-      ),
+      delegate: SliverChildBuilderDelegate((BuildContext context, int index) {
+        final slot = inventory[index];
+        return ItemSlotCard(slot: slot);
+      }, childCount: inventory.length),
     );
   }
 }

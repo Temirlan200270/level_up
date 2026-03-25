@@ -7,6 +7,7 @@ import '../../models/enums.dart';
 import '../../services/providers.dart';
 import '../../services/ai_service.dart';
 import '../inventory/widgets/loot_notification.dart';
+import '../shop/shop_screen.dart';
 
 class QuestsPage extends ConsumerWidget {
   const QuestsPage({super.key});
@@ -26,6 +27,17 @@ class QuestsPage extends ConsumerWidget {
               title: Text(t('quests')),
               centerTitle: true,
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart_outlined),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ShopScreen(),
+                      ),
+                    );
+                  },
+                  tooltip: t('shop'),
+                ),
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () {
@@ -48,13 +60,18 @@ class QuestsPage extends ConsumerWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 12),
-                      ...activeQuests.map((quest) => _buildQuestCard(
-                        context,
-                        ref,
-                        quest,
-                        isActive: true,
-                        t: t,
-                      )),
+                      ...activeQuests.asMap().entries.map(
+                        (e) => _staggerIn(
+                          e.key,
+                          _buildQuestCard(
+                            context,
+                            ref,
+                            e.value,
+                            isActive: true,
+                            t: t,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
                     ] else ...[
                       _buildEmptyState(
@@ -74,13 +91,23 @@ class QuestsPage extends ConsumerWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 12),
-                      ...completedQuests.take(5).map((quest) => _buildQuestCard(
-                        context,
-                        ref,
-                        quest,
-                        isActive: false,
-                        t: t,
-                      )),
+                      ...completedQuests
+                          .take(5)
+                          .toList()
+                          .asMap()
+                          .entries
+                          .map(
+                            (e) => _staggerIn(
+                              activeQuests.length + e.key,
+                              _buildQuestCard(
+                                context,
+                                ref,
+                                e.value,
+                                isActive: false,
+                                t: t,
+                              ),
+                            ),
+                          ),
                     ],
                   ],
                 ),
@@ -91,7 +118,33 @@ class QuestsPage extends ConsumerWidget {
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          FloatingActionButton.small(
+            heroTag: 'manual_quest',
+            onPressed: () => _showManualQuestDialog(context, ref),
+            tooltip: t('create_quest'),
+            child: const Icon(Icons.edit_note),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton.small(
+            heroTag: 'urgent_quest',
+            backgroundColor: SoloLevelingColors.warning,
+            onPressed: () async {
+              await ref.read(questsProvider.notifier).spawnUrgentQuest();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(t('urgent_quest_spawned')),
+                    backgroundColor: SoloLevelingColors.warning,
+                  ),
+                );
+              }
+            },
+            tooltip: t('spawn_urgent_quest'),
+            child: const Icon(Icons.bolt),
+          ),
+          const SizedBox(height: 8),
           FloatingActionButton(
             heroTag: 'ai_quest',
             onPressed: () => _generateAIQuest(context, ref),
@@ -105,7 +158,7 @@ class QuestsPage extends ConsumerWidget {
             onPressed: () async {
               // Инициализируем ежедневные квесты
               await ref.read(questsProvider.notifier).initializeDailyQuests();
-              
+
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -123,6 +176,24 @@ class QuestsPage extends ConsumerWidget {
     );
   }
 
+  /// Лёгкая появление списка (без Lottie).
+  Widget _staggerIn(int index, Widget child) {
+    final ms = (220 + index * 36).clamp(220, 520);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: ms),
+      curve: Curves.easeOutCubic,
+      builder: (context, v, c) {
+        final t = v.clamp(0.0, 1.0);
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(offset: Offset(0, 10 * (1 - t)), child: c),
+        );
+      },
+      child: child,
+    );
+  }
+
   // Карточка квеста
   Widget _buildQuestCard(
     BuildContext context,
@@ -133,6 +204,7 @@ class QuestsPage extends ConsumerWidget {
   }) {
     final isExpired = quest.isExpired;
     final canComplete = quest.canComplete;
+    final mutationBusy = ref.watch(questMutationBusyProvider);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -163,15 +235,22 @@ class QuestsPage extends ConsumerWidget {
                     ),
                   ),
                   if (isActive) ...[
+                    if (quest.canFail)
+                      IconButton(
+                        icon: const Icon(Icons.cancel_outlined),
+                        color: SoloLevelingColors.error,
+                        onPressed: mutationBusy
+                            ? null
+                            : () => _confirmFailQuest(context, ref, quest, t),
+                        tooltip: t('fail_quest'),
+                      ),
                     if (canComplete)
                       IconButton(
                         icon: const Icon(Icons.check_circle_outline),
                         color: SoloLevelingColors.neonGreen,
-                        onPressed: () => _showCompleteQuestDialog(
-                          context,
-                          ref,
-                          quest,
-                        ),
+                        onPressed: mutationBusy
+                            ? null
+                            : () => _showCompleteQuestDialog(context, ref, quest),
                         tooltip: t('complete_quest'),
                       )
                     else if (isExpired)
@@ -188,14 +267,14 @@ class QuestsPage extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              
+
               // Описание
               Text(
                 quest.description,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 12),
-              
+
               // Награды и тип
               Row(
                 children: [
@@ -206,7 +285,9 @@ class QuestsPage extends ConsumerWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getQuestTypeColor(quest.type).withValues(alpha: 0.2),
+                      color: _getQuestTypeColor(
+                        quest.type,
+                      ).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(
                         color: _getQuestTypeColor(quest.type),
@@ -214,7 +295,7 @@ class QuestsPage extends ConsumerWidget {
                       ),
                     ),
                     child: Text(
-                      _getQuestTypeLabel(quest.type),
+                      _getQuestTypeLabel(quest.type, t),
                       style: TextStyle(
                         color: _getQuestTypeColor(quest.type),
                         fontSize: 12,
@@ -223,7 +304,7 @@ class QuestsPage extends ConsumerWidget {
                     ),
                   ),
                   const Spacer(),
-                  
+
                   // Награды
                   if (quest.experienceReward > 0)
                     _buildRewardChip(
@@ -241,9 +322,20 @@ class QuestsPage extends ConsumerWidget {
                       '${quest.statPointsReward} очков',
                       SoloLevelingColors.neonPurple,
                     ),
+                  if (quest.goldReward > 0) ...[
+                    if (quest.experienceReward > 0 ||
+                        quest.statPointsReward > 0)
+                      const SizedBox(width: 8),
+                    _buildRewardChip(
+                      context,
+                      Icons.monetization_on,
+                      '${quest.goldReward} ${t('gold')}',
+                      SoloLevelingColors.warning,
+                    ),
+                  ],
                 ],
               ),
-              
+
               // Срок выполнения
               if (quest.expiresAt != null && isActive) ...[
                 const SizedBox(height: 8),
@@ -307,11 +399,7 @@ class QuestsPage extends ConsumerWidget {
         padding: const EdgeInsets.all(32.0),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 64,
-              color: SoloLevelingColors.textTertiary,
-            ),
+            Icon(icon, size: 64, color: SoloLevelingColors.textTertiary),
             const SizedBox(height: 16),
             Text(
               title,
@@ -337,6 +425,8 @@ class QuestsPage extends ConsumerWidget {
     Quest quest,
   ) {
     final t = useTranslations(ref);
+    final dict = ref.watch(activeSystemProvider).dictionary;
+    final mutationBusy = ref.watch(questMutationBusyProvider);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -372,7 +462,7 @@ class QuestsPage extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${t('reward')}: ${quest.experienceReward} ${t('experience').toLowerCase()}',
+                    '${t('reward')}: ${quest.experienceReward} ${dict.experienceName.toLowerCase()}',
                     style: const TextStyle(
                       color: SoloLevelingColors.neonBlue,
                       fontWeight: FontWeight.bold,
@@ -380,6 +470,26 @@ class QuestsPage extends ConsumerWidget {
                   ),
                 ],
               ),
+            if (quest.goldReward > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.monetization_on,
+                    color: SoloLevelingColors.warning,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${t('gold_reward')}: ${quest.goldReward} ${dict.currencyName}',
+                    style: const TextStyle(
+                      color: SoloLevelingColors.warning,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
         actions: [
@@ -388,57 +498,63 @@ class QuestsPage extends ConsumerWidget {
             child: Text(t('cancel')),
           ),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: mutationBusy
+                ? null
+                : () async {
               if (!context.mounted) return;
               Navigator.pop(context);
 
               // Отмечаем квест как выполненный и получаем результат
-              final result =
-                  await ref.read(questsProvider.notifier).completeQuest(quest.id, ref);
+              final result = await ref
+                  .read(questsProvider.notifier)
+                  .completeQuest(quest.id, ref);
 
               if (!context.mounted) return;
               if (result != null) {
-                  final finalExp = result['experience'] as int;
-                  final lootDrop = result['lootDrop'] as LootDropResult?;
-                  
-                  // Показываем уведомление об опыте (всегда показываем!)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        t('quest_completed', params: {'exp': finalExp.toString()}),
+                final finalExp = result['experience'] as int;
+                final lootDrop = result['lootDrop'] as LootDropResult?;
+
+                // Показываем уведомление об опыте (всегда показываем!)
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      t(
+                        'quest_completed',
+                        params: {'exp': finalExp.toString()},
                       ),
-                      backgroundColor: SoloLevelingColors.neonGreen,
-                      duration: const Duration(seconds: 2),
                     ),
-                  );
-                  
-                  // Показываем уведомление о дропе, если есть
-                  if (lootDrop != null && context.mounted) {
-                    Future.delayed(const Duration(milliseconds: 500), () {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: lootDrop.goldAmount != null
-                                ? LootNotification(
-                                    itemName: '',
-                                    goldAmount: lootDrop.goldAmount,
-                                  )
-                                : LootNotification(
-                                    itemName: lootDrop.item?.name ?? '',
-                                    itemRarity: lootDrop.item != null
-                                        ? _getRarityName(lootDrop.item!.rarity)
-                                        : null,
-                                  ),
-                            backgroundColor: Colors.transparent,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    });
-                  }
+                    backgroundColor: SoloLevelingColors.neonGreen,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+
+                // Показываем уведомление о дропе, если есть
+                if (lootDrop != null && context.mounted) {
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: lootDrop.goldAmount != null
+                              ? LootNotification(
+                                  itemName: '',
+                                  goldAmount: lootDrop.goldAmount,
+                                )
+                              : LootNotification(
+                                  itemName: lootDrop.item?.name ?? '',
+                                  itemRarity: lootDrop.item != null
+                                      ? _getRarityName(lootDrop.item!.rarity)
+                                      : null,
+                                ),
+                          backgroundColor: Colors.transparent,
+                          elevation: 0,
+                          padding: EdgeInsets.zero,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  });
                 }
+              }
             },
             child: Text(t('complete_quest')),
           ),
@@ -458,20 +574,373 @@ class QuestsPage extends ConsumerWidget {
         return SoloLevelingColors.neonPink;
       case QuestType.story:
         return SoloLevelingColors.neonGreen;
+      case QuestType.urgent:
+        return SoloLevelingColors.warning;
+      case QuestType.penalty:
+        return SoloLevelingColors.error;
     }
   }
 
   // Метка типа квеста
-  String _getQuestTypeLabel(QuestType type) {
+  String _getQuestTypeLabel(QuestType type, String Function(String) t) {
     switch (type) {
       case QuestType.daily:
-        return 'Ежедневный';
+        return t('quest_type_daily');
       case QuestType.weekly:
-        return 'Еженедельный';
+        return t('quest_type_weekly');
       case QuestType.special:
-        return 'Особый';
+        return t('quest_type_special');
       case QuestType.story:
-        return 'Сюжетный';
+        return t('quest_type_story');
+      case QuestType.urgent:
+        return t('quest_type_urgent');
+      case QuestType.penalty:
+        return t('quest_type_penalty');
+    }
+  }
+
+  void _confirmFailQuest(
+    BuildContext context,
+    WidgetRef ref,
+    Quest quest,
+    String Function(String) t,
+  ) {
+    final mutationBusy = ref.watch(questMutationBusyProvider);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SoloLevelingColors.surface,
+        title: Text(
+          t('fail_quest_title'),
+          style: const TextStyle(color: SoloLevelingColors.textPrimary),
+        ),
+        content: Text(
+          t('fail_quest_message'),
+          style: const TextStyle(color: SoloLevelingColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(t('cancel')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: SoloLevelingColors.error,
+            ),
+            onPressed: mutationBusy
+                ? null
+                : () async {
+              Navigator.pop(ctx);
+              await ref.read(questsProvider.notifier).failQuest(quest.id, ref);
+              if (context.mounted) {
+                final extra = quest.mandatory && quest.type != QuestType.penalty
+                    ? '\n${t('penalty_zone_applied_snack')}'
+                    : '';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${t('quest_failed_snack')}$extra'),
+                    backgroundColor: SoloLevelingColors.error,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            },
+            child: Text(t('fail_quest')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showManualQuestDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final t = useTranslations(ref);
+    final titleCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final tagsCtrl = TextEditingController();
+
+    QuestType selectedType = QuestType.special;
+    var difficulty = 2;
+    var mandatory = false;
+    var goldReward = 10;
+    var expReward = 20;
+    var statPoints = 0;
+    var deadlineHours = 24;
+
+    if (!context.mounted) return;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              backgroundColor: SoloLevelingColors.surface,
+              title: Text(
+                t('create_quest'),
+                style: const TextStyle(color: SoloLevelingColors.textPrimary),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: titleCtrl,
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: t('quest_title_label'),
+                        labelStyle: const TextStyle(
+                          color: SoloLevelingColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    TextField(
+                      controller: descCtrl,
+                      maxLines: 3,
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: t('description'),
+                        labelStyle: const TextStyle(
+                          color: SoloLevelingColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      t('quest_type'),
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textSecondary,
+                      ),
+                    ),
+                    DropdownButton<QuestType>(
+                      dropdownColor: SoloLevelingColors.surface,
+                      value: selectedType,
+                      isExpanded: true,
+                      items: QuestType.values
+                          .where((e) => e != QuestType.penalty)
+                          .map(
+                            (e) => DropdownMenuItem<QuestType>(
+                              value: e,
+                              child: Text(
+                                _getQuestTypeLabel(e, t),
+                                style: const TextStyle(
+                                  color: SoloLevelingColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setLocal(() => selectedType = v);
+                        }
+                      },
+                    ),
+                    Text(
+                      '${t('difficulty')}: $difficulty',
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textSecondary,
+                      ),
+                    ),
+                    Slider(
+                      value: difficulty.toDouble(),
+                      min: 1,
+                      max: 5,
+                      divisions: 4,
+                      label: '$difficulty',
+                      onChanged: (v) => setLocal(() => difficulty = v.round()),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        t('mandatory_quest'),
+                        style: const TextStyle(
+                          color: SoloLevelingColors.textPrimary,
+                        ),
+                      ),
+                      value: mandatory,
+                      onChanged: (v) => setLocal(() => mandatory = v),
+                    ),
+                    TextField(
+                      controller: tagsCtrl,
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: t('tags_hint'),
+                        labelStyle: const TextStyle(
+                          color: SoloLevelingColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${t('gold_reward')}: $goldReward',
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textSecondary,
+                      ),
+                    ),
+                    Slider(
+                      value: goldReward.clamp(0, 100).toDouble(),
+                      min: 0,
+                      max: 100,
+                      divisions: 10,
+                      label: '$goldReward',
+                      onChanged: (v) => setLocal(() => goldReward = v.round()),
+                    ),
+                    Text(
+                      '${t('experience')}: $expReward',
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textSecondary,
+                      ),
+                    ),
+                    Slider(
+                      value: expReward.clamp(5, 80).toDouble(),
+                      min: 5,
+                      max: 80,
+                      divisions: 15,
+                      label: '$expReward',
+                      onChanged: (v) => setLocal(() => expReward = v.round()),
+                    ),
+                    Text(
+                      '${t('stat_points_reward')}: $statPoints',
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textSecondary,
+                      ),
+                    ),
+                    Slider(
+                      value: statPoints.toDouble(),
+                      min: 0,
+                      max: 5,
+                      divisions: 5,
+                      label: '$statPoints',
+                      onChanged: (v) => setLocal(() => statPoints = v.round()),
+                    ),
+                    Text(
+                      '${t('deadline_hours')}: $deadlineHours',
+                      style: const TextStyle(
+                        color: SoloLevelingColors.textSecondary,
+                      ),
+                    ),
+                    Slider(
+                      value: deadlineHours.toDouble(),
+                      min: 1,
+                      max: 168,
+                      divisions: 24,
+                      label: '$deadlineHours',
+                      onChanged: (v) =>
+                          setLocal(() => deadlineHours = v.round()),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(t('cancel')),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final title = titleCtrl.text.trim();
+                    final desc = descCtrl.text.trim();
+                    if (title.isEmpty || desc.isEmpty) {
+                      return;
+                    }
+                    final tags = tagsCtrl.text
+                        .split(',')
+                        .map((e) => e.trim())
+                        .where((e) => e.isNotEmpty)
+                        .toList();
+                    var quest = Quest(
+                      title: title,
+                      description: desc,
+                      type: selectedType,
+                      experienceReward: expReward,
+                      statPointsReward: statPoints,
+                      goldReward: goldReward,
+                      tags: tags,
+                      difficulty: difficulty,
+                      mandatory: mandatory,
+                      expiresAt: DateTime.now().add(
+                        Duration(hours: deadlineHours),
+                      ),
+                    );
+
+                    var usedAiBalance = false;
+                    if (await AIService.hasApiKey()) {
+                      try {
+                        final hunter = ref.read(hunterProvider);
+                        final bal = await AIService.balanceManualQuestDraft(
+                          title: title,
+                          description: desc,
+                          questType: selectedType,
+                          hunterLevel: hunter?.level ?? 1,
+                          playerDifficulty: difficulty,
+                          playerGold: goldReward,
+                          playerExp: expReward,
+                          playerStatPoints: statPoints,
+                          playerMandatory: mandatory,
+                        );
+                        quest = quest.copyWith(
+                          difficulty: (bal['difficulty'] as num).toInt(),
+                          experienceReward:
+                              (bal['experienceReward'] as num).toInt(),
+                          goldReward: (bal['goldReward'] as num).toInt(),
+                          statPointsReward:
+                              (bal['statPointsReward'] as num).toInt(),
+                          mandatory: bal['mandatory'] == true,
+                        );
+                        usedAiBalance = true;
+                      } catch (_) {
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(
+                              content: Text(t('manual_quest_ai_balance_failed')),
+                              backgroundColor: SoloLevelingColors.error,
+                            ),
+                          );
+                        }
+                      }
+                    }
+
+                    await ref.read(questsProvider.notifier).addQuest(quest);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            usedAiBalance
+                                ? t(
+                                    'quest_created_ai',
+                                    params: {'title': quest.title},
+                                  )
+                                : t(
+                                    'quest_created',
+                                    params: {'title': quest.title},
+                                  ),
+                          ),
+                          backgroundColor: SoloLevelingColors.neonGreen,
+                        ),
+                      );
+                    }
+                  },
+                  child: Text(t('save')),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } finally {
+      titleCtrl.dispose();
+      descCtrl.dispose();
+      tagsCtrl.dispose();
     }
   }
 
@@ -495,10 +964,7 @@ class QuestsPage extends ConsumerWidget {
   }
 
   // Генерация квеста через ИИ
-  Future<void> _generateAIQuest(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
+  Future<void> _generateAIQuest(BuildContext context, WidgetRef ref) async {
     final t = useTranslations(ref);
     // Проверяем наличие API ключа
     final hasApiKey = await AIService.hasApiKey();
@@ -553,13 +1019,14 @@ class QuestsPage extends ConsumerWidget {
 
     try {
       final hunter = ref.read(hunterProvider);
-      
+
       // Генерируем квест через ИИ
       final questData = await AIService.generateQuest(
         hunterLevel: hunter?.level.toString(),
         hunterStats: hunter != null
             ? 'Сила: ${hunter.stats.strength}, Ловкость: ${hunter.stats.agility}, Интеллект: ${hunter.stats.intelligence}, Живучесть: ${hunter.stats.vitality}'
             : null,
+        lowestStatsFocus: hunter?.describeLowestStatsForPrompt(),
       );
 
       // Парсим тип квеста
@@ -574,16 +1041,20 @@ class QuestsPage extends ConsumerWidget {
 
       // Создаём квест
       final now = DateTime.now();
-      final tomorrow = DateTime(now.year, now.month, now.day).add(
-        const Duration(days: 1),
-      );
+      final tomorrow = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(const Duration(days: 1));
 
       final quest = Quest(
         title: questData['title'] as String? ?? 'Новый квест',
         description: questData['description'] as String? ?? 'Описание квеста',
         type: questType,
-        experienceReward: (questData['experienceReward'] as num?)?.toInt() ?? 20,
+        experienceReward:
+            (questData['experienceReward'] as num?)?.toInt() ?? 20,
         statPointsReward: (questData['statPointsReward'] as num?)?.toInt() ?? 0,
+        goldReward: (questData['goldReward'] as num?)?.toInt() ?? 0,
         expiresAt: tomorrow,
       );
 
@@ -592,7 +1063,7 @@ class QuestsPage extends ConsumerWidget {
 
       if (context.mounted) {
         Navigator.pop(context); // Закрываем диалог загрузки
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(t('quest_created', params: {'title': quest.title})),
@@ -604,7 +1075,7 @@ class QuestsPage extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         Navigator.pop(context); // Закрываем диалог загрузки
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${t('error')}: $e'),
@@ -616,4 +1087,3 @@ class QuestsPage extends ConsumerWidget {
     }
   }
 }
-

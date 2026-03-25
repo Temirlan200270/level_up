@@ -4,8 +4,11 @@ import 'item_model.dart';
 import 'skill_model.dart';
 import 'stats_model.dart';
 import 'buff_model.dart';
+import 'quest_model.dart';
 import '../data/items_data.dart';
 import '../data/skills_data.dart';
+import '../core/quest_utils.dart';
+import '../core/experience_curve.dart';
 
 // Класс слота инвентаря
 class InventorySlot {
@@ -20,11 +23,11 @@ class Hunter {
   final String id;
   final String name;
   final int level;
-  
+
   // ТВОИ НАЗВАНИЯ ПОЛЕЙ
-  final double currentExp; 
+  final double currentExp;
   final double maxExp;
-  
+
   final Stats stats;
   final DateTime createdAt;
   final DateTime? lastLoginAt;
@@ -36,13 +39,18 @@ class Hunter {
   final Map<String, Item?> equipment;
   final List<Skill> skills;
   final List<Buff> activeBuffs; // Временные эффекты
+  /// Подряд завершённых ежедневных квестов (сбрасывается при провале обязательного).
+  final int dailyQuestStreak;
+
+  /// Скрытый «класс», открытый аналитикой тегов (например coder).
+  final String? hiddenClassId;
 
   Hunter({
     String? id,
     required this.name,
     this.level = 1,
     this.currentExp = 0, // Используем currentExp
-    double? maxExp,      // Используем maxExp
+    double? maxExp, // Используем maxExp
     Stats? stats,
     DateTime? createdAt,
     this.lastLoginAt,
@@ -50,22 +58,64 @@ class Hunter {
     this.gold = 0,
     this.skillPoints = 0,
     this.inventory = const [],
-    this.equipment = const {
-      'weapon': null,
-      'armor': null,
-      'accessory': null,
-    },
+    this.equipment = const {'weapon': null, 'armor': null, 'accessory': null},
     this.skills = const [],
     this.activeBuffs = const [],
-  })  : id = id ?? const Uuid().v4(),
-        maxExp = maxExp ?? (level * 100).toDouble(), // Логика расчета maxExp
-        stats = stats ?? const Stats(),
-        createdAt = createdAt ?? DateTime.now();
+    this.dailyQuestStreak = 0,
+    this.hiddenClassId,
+  }) : id = id ?? const Uuid().v4(),
+       maxExp = maxExp ??
+           ExperienceCurve.maxExperienceForLevel(level), // Кривая опыта
+       stats = stats ?? const Stats(),
+       createdAt = createdAt ?? DateTime.now();
 
   // Геттеры
   double get experienceToNextLevel => maxExp;
   double get levelProgress => (maxExp == 0) ? 0 : currentExp / maxExp;
   bool get canLevelUp => currentExp >= maxExp;
+
+  /// Бонус характеристик только от экипировки (`stat_strength` и т.д. в effects).
+  Stats get equipmentStatsBonus {
+    int s = 0, a = 0, i = 0, v = 0;
+    for (final equipped in equipment.values) {
+      if (equipped?.effects == null) continue;
+      final e = equipped!.effects!;
+      s += (e['stat_strength'] as num?)?.toInt() ?? 0;
+      a += (e['stat_agility'] as num?)?.toInt() ?? 0;
+      i += (e['stat_intelligence'] as num?)?.toInt() ?? 0;
+      v += (e['stat_vitality'] as num?)?.toInt() ?? 0;
+    }
+    return Stats(
+      strength: s,
+      agility: a,
+      intelligence: i,
+      vitality: v,
+      availablePoints: 0,
+    );
+  }
+
+  /// Итоговые статы для отображения (база + экипировка).
+  Stats get displayStats => stats.mergeEquipmentBonus(equipmentStatsBonus);
+
+  /// Текст для промпта ИИ: акцент на самых низких базовых статах.
+  String describeLowestStatsForPrompt() {
+    final pairs = <(String, int)>[
+      ('Сила (strength)', stats.strength),
+      ('Ловкость (agility)', stats.agility),
+      ('Интеллект (intelligence)', stats.intelligence),
+      ('Живучесть (vitality)', stats.vitality),
+    ];
+    pairs.sort((a, b) => a.$2.compareTo(b.$2));
+    final top = pairs.take(3).map((e) => '${e.$1}=${e.$2}').join(', ');
+    return 'Сейчас слабее всего (приоритет для квеста): $top. '
+        'Сформулируй IRL-задание, которое органично развивает эти стороны охотника.';
+  }
+
+  /// Множитель штрафа за провал (пассив «Скрытность»).
+  double get questFailurePenaltyMultiplier {
+    final hasStealth = skills.any((sk) => sk.id == 'skill_stealth');
+    return hasStealth ? 0.8 : 1.0;
+  }
 
   // Метод повышения уровня
   Hunter levelUp() {
@@ -73,7 +123,7 @@ class Hunter {
 
     final newLevel = level + 1;
     final remainingExp = currentExp - maxExp;
-    final newMaxExp = (newLevel * 100).toDouble();
+    final newMaxExp = ExperienceCurve.maxExperienceForLevel(newLevel);
 
     return copyWith(
       level: newLevel,
@@ -101,6 +151,8 @@ class Hunter {
     Map<String, Item?>? equipment,
     List<Skill>? skills,
     List<Buff>? activeBuffs,
+    int? dailyQuestStreak,
+    String? hiddenClassId,
   }) {
     return Hunter(
       id: id ?? this.id,
@@ -117,24 +169,30 @@ class Hunter {
       equipment: equipment ?? this.equipment,
       skills: skills ?? this.skills,
       activeBuffs: activeBuffs ?? this.activeBuffs,
+      dailyQuestStreak: dailyQuestStreak ?? this.dailyQuestStreak,
+      hiddenClassId: hiddenClassId ?? this.hiddenClassId,
     );
   }
 
   // Вычисляет финальный опыт с учетом модификаторов (без добавления)
-  int calculateFinalExperience(int baseExp) {
+  int calculateFinalExperience(int baseExp, {QuestType? questType}) {
     if (baseExp <= 0) return 0;
-    
+
     // Применяем модификаторы опыта от экипировки и баффов
     double expMultiplier = 1.0;
-    
+
     // Проверяем активные баффы
     for (final buff in activeBuffs) {
       if (buff.isExpired) continue;
       if (buff.effectId == 'xp_multiplier' || buff.effectId == 'sprint_bonus') {
         expMultiplier *= (buff.value as num).toDouble();
       }
+      // Штрафная зона: множитель опыта < 1 (обычно 0.5).
+      if (buff.effectId == 'penalty_zone') {
+        expMultiplier *= (buff.value as num).toDouble();
+      }
     }
-    
+
     // Проверяем пассивные статы экипировки
     for (final equippedItem in equipment.values) {
       if (equippedItem?.effects != null) {
@@ -142,20 +200,20 @@ class Hunter {
         if (effects.containsKey('xp_bonus')) {
           expMultiplier += (effects['xp_bonus'] as num).toDouble();
         }
-        if (effects.containsKey('xp_hard_quest')) {
-          // TODO: Проверять тип квеста (сложный/обычный) при получении опыта
+        if (effects.containsKey('xp_hard_quest') &&
+            isHardQuestType(questType)) {
           expMultiplier += (effects['xp_hard_quest'] as num).toDouble();
         }
       }
     }
-    
+
     return (baseExp * expMultiplier).round();
   }
 
-  Hunter addExperience(int exp) {
+  Hunter addExperience(int exp, {QuestType? questType}) {
     if (exp <= 0) return this;
 
-    final gain = calculateFinalExperience(exp).toDouble();
+    final gain = calculateFinalExperience(exp, questType: questType).toDouble();
     var h = copyWith(currentExp: currentExp + gain);
     // Поддержка нескольких уровней подряд при большой награде
     while (h.canLevelUp) {
@@ -177,19 +235,22 @@ class Hunter {
       'lastLoginAt': lastLoginAt?.toIso8601String(),
       'gold': gold,
       'skillPoints': skillPoints,
-      'inventory': inventory.map((slot) => {
-        'itemId': slot.item.id,
-        'quantity': slot.quantity,
-      }).toList(),
-      'equipment': equipment.map((key, item) => 
-        MapEntry(key, item?.id)
-      ),
-      'skills': skills.map((s) => {
-        'id': s.id,
-        'level': s.level,
-        'lastUsed': s.lastUsed?.toIso8601String(),
-      }).toList(),
+      'inventory': inventory
+          .map((slot) => {'itemId': slot.item.id, 'quantity': slot.quantity})
+          .toList(),
+      'equipment': equipment.map((key, item) => MapEntry(key, item?.id)),
+      'skills': skills
+          .map(
+            (s) => {
+              'id': s.id,
+              'level': s.level,
+              'lastUsed': s.lastUsed?.toIso8601String(),
+            },
+          )
+          .toList(),
       'activeBuffs': activeBuffs.map((b) => b.toMap()).toList(),
+      'dailyQuestStreak': dailyQuestStreak,
+      'hiddenClassId': hiddenClassId,
     };
   }
 
@@ -205,8 +266,8 @@ class Hunter {
       maxExp: map['maxExp'],
       stats: Stats.fromMap(map['stats']),
       createdAt: DateTime.parse(map['createdAt']),
-      lastLoginAt: map['lastLoginAt'] != null 
-          ? DateTime.parse(map['lastLoginAt']) 
+      lastLoginAt: map['lastLoginAt'] != null
+          ? DateTime.parse(map['lastLoginAt'])
           : null,
       gold: map['gold'],
       skillPoints: map['skillPoints'],
@@ -246,8 +307,8 @@ class Hunter {
             cost: baseSkill.cost,
             type: baseSkill.type,
             parentId: baseSkill.parentId,
-            lastUsed: skillMap['lastUsed'] != null 
-                ? DateTime.parse(skillMap['lastUsed']) 
+            lastUsed: skillMap['lastUsed'] != null
+                ? DateTime.parse(skillMap['lastUsed'])
                 : null,
             cooldownSeconds: baseSkill.cooldownSeconds,
             durationSeconds: baseSkill.durationSeconds,
@@ -260,9 +321,13 @@ class Hunter {
           );
         }
       }).toList(),
-      activeBuffs: (map['activeBuffs'] as List?)?.map((buffMap) {
-        return Buff.fromMap(buffMap);
-      }).toList() ?? [],
+      activeBuffs:
+          (map['activeBuffs'] as List?)?.map((buffMap) {
+            return Buff.fromMap(buffMap);
+          }).toList() ??
+          [],
+      dailyQuestStreak: (map['dailyQuestStreak'] as num?)?.toInt() ?? 0,
+      hiddenClassId: map['hiddenClassId'] as String?,
     );
   }
 }

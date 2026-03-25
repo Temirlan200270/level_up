@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/translations.dart';
+import '../../../core/item_rarity_style.dart';
+import '../../../core/theme.dart';
 
 import '../../../models/item_model.dart';
+import '../../../models/hunter_model.dart';
 import '../../../services/providers.dart';
+import 'item_detail_popup.dart';
 
 class EquipmentPanel extends ConsumerWidget {
   const EquipmentPanel({super.key});
@@ -20,28 +24,61 @@ class EquipmentPanel extends ConsumerWidget {
         children: [
           _buildEquipmentSlot(context, equipment?['weapon'], t('weapon'), t),
           _buildEquipmentSlot(context, equipment?['armor'], t('armor'), t),
-          _buildEquipmentSlot(context, equipment?['accessory'], t('accessory'), t),
+          _buildEquipmentSlot(
+            context,
+            equipment?['accessory'],
+            t('accessory'),
+            t,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildEquipmentSlot(BuildContext context, Item? item, String placeholder, String Function(String) t) {
+  Widget _buildEquipmentSlot(
+    BuildContext context,
+    Item? item,
+    String placeholder,
+    String Function(String) t,
+  ) {
+    final borderColor = item != null
+        ? ItemRarityStyle.color(
+            item.rarity,
+            theme: Theme.of(context),
+          )
+        : SoloLevelingColors.textTertiary;
+    final glow = item != null
+        ? ItemRarityStyle.glow(
+            item.rarity,
+            theme: Theme.of(context),
+          )
+        : <BoxShadow>[];
+
     return GestureDetector(
-      onTap: () {
-        // TODO: Показать детали предмета или список для экипировки
-      },
+      onTap: item != null
+          ? () {
+              showModalBottomSheet<void>(
+                context: context,
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (ctx) => ItemDetailPopup(
+                  slot: InventorySlot(item: item, quantity: 1),
+                ),
+              );
+            }
+          : null,
       child: Container(
         width: 80,
         height: 80,
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade700),
+          border: Border.all(color: borderColor, width: 2),
+          boxShadow: glow,
         ),
         child: Center(
           child: item != null
-              ? Image.asset(item.iconPath) // TODO: Заменить на реальную иконку
+              ? Icon(Icons.inventory_2, color: borderColor, size: 36)
               : Text(
                   placeholder,
                   textAlign: TextAlign.center,

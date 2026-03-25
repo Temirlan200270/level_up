@@ -21,10 +21,7 @@ class InventoryScreen extends ConsumerWidget {
         slivers: [
           SliverToBoxAdapter(child: EquipmentPanel()),
           SliverToBoxAdapter(child: GoldDisplay()),
-          SliverPadding(
-            padding: EdgeInsets.all(8.0),
-            sliver: InventoryGrid(),
-          ),
+          SliverPadding(padding: EdgeInsets.all(8.0), sliver: InventoryGrid()),
         ],
       ),
     );

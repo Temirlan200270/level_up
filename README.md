@@ -24,6 +24,30 @@
 | Настройки AI (провайдер, модель, ключи) | [shared_preferences](https://pub.dev/packages/shared_preferences) |
 | HTTP к LLM | [http](https://pub.dev/packages/http) |
 | Локализация строк | JSON в `assets/translations/` + сервис переводов |
+| Облако (опционально) | [supabase_flutter](https://pub.dev/packages/supabase_flutter) — аккаунт и таблица `game_backups` |
+
+## Supabase (облако и аккаунты)
+
+Проект в облаке можно создать вручную или через CI; схема в репозитории описана в **plan.md**. Минимум в БД:
+
+- `public.profiles` — строка на пользователя (создаётся триггером после регистрации в Auth).
+- `public.game_backups` — один JSON-снимок на пользователя (`payload` = тот же формат, что `DatabaseService.exportGameBackupJson()`).
+
+Включена **RLS**: доступ только к своим строкам (`auth.uid()`).
+
+### Сборка с облаком
+
+Ключи не хранятся в коде. Передайте URL и **anon** (или publishable) ключ из [Supabase Dashboard](https://supabase.com/dashboard) → Project Settings → API:
+
+```bash
+flutter run \
+  --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon_or_publishable_key>
+```
+
+Без этих флагов приложение работает только локально (Hive + экспорт JSON). В **настройках** → «Облачная синхронизация»: регистрация/вход, выгрузка и восстановление бэкапа.
+
+Если включено подтверждение email в Auth, после регистрации проверьте почту или отключите подтверждение в Dashboard для разработки.
 
 ## Требования
 
@@ -47,6 +71,19 @@ flutter run
 ```
 
 Сборка релиза — стандартно для целевой платформы (`flutter build apk`, `flutter build ios` и т.д.).
+
+### Android: ошибка установки Build-Tools 35
+
+Плагины Flutter тянут **compileSdk 36**; Gradle иногда пытается скачать **build-tools;35.0.0** и падает на сети. В `android/app/build.gradle.kts` зафиксировано **`buildToolsVersion = "36.1.0"`** — используйте установленный набор инструментов 36.1.0.
+
+Если папки `%LOCALAPPDATA%\Android\sdk\build-tools\36.1.0` нет:
+
+1. **Android Studio** → *Settings* → *Languages & Frameworks* → *Android SDK* → вкладка **SDK Tools** → включите **Android SDK Build-Tools 36.1** (или актуальную 36.x) → *Apply*.
+2. Или в терминале (путь к `sdkmanager` подстройте под свою установку cmdline-tools):
+
+```bat
+"%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat" "build-tools;36.1.0" "platforms;android-36"
+```
 
 ## Структура проекта
 
@@ -79,6 +116,10 @@ assets/
 
 - **Охотник**, **квесты**, **язык интерфейса (Hive settings)** — в коробках Hive после `DatabaseService.init()` в `main.dart`.
 - Сброс прогресса в настройках очищает охотника и квесты в Hive.
+
+## Дорожная карта
+
+Планы по фазам и актуальные чеклисты: [**plan.md**](plan.md).
 
 ## Версия
 

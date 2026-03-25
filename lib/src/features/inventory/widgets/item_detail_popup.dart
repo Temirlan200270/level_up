@@ -5,6 +5,8 @@ import '../../../models/hunter_model.dart';
 import '../../../services/providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/translations.dart';
+import '../../../core/item_rarity_style.dart';
+import '../../../core/economy_scale.dart';
 
 /// Модальное окно с деталями предмета
 class ItemDetailPopup extends ConsumerWidget {
@@ -12,26 +14,20 @@ class ItemDetailPopup extends ConsumerWidget {
 
   const ItemDetailPopup({super.key, required this.slot});
 
-  Color _getRarityColor(ItemRarity rarity) {
-    switch (rarity) {
-      case ItemRarity.common:
-        return Colors.grey.shade400;
-      case ItemRarity.rare:
-        return Colors.blue.shade300;
-      case ItemRarity.epic:
-        return Colors.purple.shade300;
-      case ItemRarity.legendary:
-        return Colors.orange.shade400;
-      case ItemRarity.mythic:
-        return Colors.red.shade500;
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final item = slot.item;
-    final rarityColor = _getRarityColor(item.rarity);
+    final rarityColor = ItemRarityStyle.color(
+      item.rarity,
+      theme: Theme.of(context),
+    );
     final t = useTranslations(ref);
+    final hunter = ref.watch(hunterProvider);
+    final sellLevel = hunter?.level ?? 1;
+    final baseSellUnit =
+        item.effects?['sellPrice'] as int? ?? item.buyPrice ~/ 2;
+    final sellUnitPrice =
+        EconomyScale.scaledShopSellUnitPrice(baseSellUnit, sellLevel);
 
     return Container(
       decoration: BoxDecoration(
@@ -45,210 +41,230 @@ class ItemDetailPopup extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-          // Заголовок с цветом редкости
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: rarityColor.withValues(alpha: 0.2),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Row(
-              children: [
-                // Иконка предмета
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: rarityColor, width: 2),
-                  ),
-                  child: Icon(
-                    Icons.shield, // TODO: Заменить на Image.asset(item.iconPath)
-                    color: rarityColor,
-                    size: 32,
-                  ),
+            // Заголовок с цветом редкости
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: rarityColor.withValues(alpha: 0.2),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: TextStyle(
-                          color: rarityColor,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (slot.quantity > 1)
-                        Text(
-                          '${t('quantity')}: ${slot.quantity}',
-                          style: TextStyle(
-                            color: SoloLevelingColors.textSecondary,
-                            fontSize: 14,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-
-          // Описание
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              item.description,
-              style: TextStyle(
-                color: SoloLevelingColors.textSecondary,
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
               ),
-            ),
-          ),
-
-          // Эффекты/Статы
-          if (item.effects != null && item.effects!.isNotEmpty) ...[
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text(
-                    '${t('effects')}:',
-                    style: TextStyle(
-                      color: SoloLevelingColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  // Иконка предмета
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: rarityColor, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.inventory_2,
+                      color: rarityColor,
+                      size: 32,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  ...item.effects!.entries.map((entry) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 16,
-                            color: SoloLevelingColors.neonGreen,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: TextStyle(
+                            color: rarityColor,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                          const SizedBox(width: 8),
+                        ),
+                        if (slot.quantity > 1)
                           Text(
-                            _formatEffect(entry.key, entry.value),
+                            '${t('quantity')}: ${slot.quantity}',
                             style: TextStyle(
                               color: SoloLevelingColors.textSecondary,
                               fontSize: 14,
                             ),
                           ),
-                        ],
-                      ),
-                    );
-                  }),
+                        const SizedBox(height: 4),
+                        Text(
+                          t('rarity_${item.rarity.name}'),
+                          style: TextStyle(
+                            color: rarityColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ],
               ),
             ),
-          ],
 
-          // Кнопки действий
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Кнопка "Использовать" (для расходников)
-                if (item.type == ItemType.consumable)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(hunterProvider.notifier).useItem(slot);
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(t('item_used', params: {'name': item.name})),
-                            backgroundColor: SoloLevelingColors.success,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.auto_fix_high),
-                      label: Text(t('use')),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: SoloLevelingColors.neonGreen,
-                        foregroundColor: Colors.black,
+            // Описание
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                item.description,
+                style: TextStyle(
+                  color: SoloLevelingColors.textSecondary,
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+
+            // Эффекты/Статы
+            if (item.effects != null && item.effects!.isNotEmpty) ...[
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${t('effects')}:',
+                      style: TextStyle(
+                        color: SoloLevelingColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    ...item.effects!.entries.map((entry) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: SoloLevelingColors.neonGreen,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _formatEffect(entry.key, entry.value),
+                              style: TextStyle(
+                                color: SoloLevelingColors.textSecondary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
 
-                // Кнопка "Экипировать" (для экипировки)
-                if (item.type == ItemType.equipment && item.slot != null) ...[
-                  if (item.type == ItemType.consumable) const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(hunterProvider.notifier).equipItem(item);
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(t('item_equipped', params: {'name': item.name})),
-                            backgroundColor: SoloLevelingColors.neonBlue,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.check_circle),
-                      label: Text(t('equip')),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: SoloLevelingColors.neonBlue,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-
-                // Кнопка "Продать" (для материалов и лишних предметов)
-                if (item.type == ItemType.material || item.type == ItemType.consumable) ...[
-                  if (item.type == ItemType.equipment) const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final sellPrice = item.effects?['sellPrice'] as int? ?? item.buyPrice ~/ 2;
-                        final totalPrice = sellPrice * slot.quantity;
-                        
-                        // Используем атомарный метод продажи
-                        await ref.read(hunterProvider.notifier).sellItem(
-                          item.id,
-                          slot.quantity,
-                          sellPrice,
-                        );
-                        
-                        if (context.mounted) {
+            // Кнопки действий
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Кнопка "Использовать" (для расходников)
+                  if (item.type == ItemType.consumable)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          ref.read(hunterProvider.notifier).useItem(slot);
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(t('sold_for', params: {'amount': totalPrice.toString()})),
-                              backgroundColor: SoloLevelingColors.warning,
+                              content: Text(
+                                t('item_used', params: {'name': item.name}),
+                              ),
+                              backgroundColor: SoloLevelingColors.success,
                             ),
                           );
-                        }
-                      },
-                      icon: const Icon(Icons.sell),
-                      label: Text(t('sell')),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: SoloLevelingColors.warning,
-                        foregroundColor: Colors.black,
+                        },
+                        icon: const Icon(Icons.auto_fix_high),
+                        label: Text(t('use')),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: SoloLevelingColors.neonGreen,
+                          foregroundColor: Colors.black,
+                        ),
                       ),
                     ),
-                  ),
+
+                  // Кнопка "Экипировать" (для экипировки)
+                  if (item.type == ItemType.equipment && item.slot != null) ...[
+                    if (item.type == ItemType.consumable)
+                      const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          ref.read(hunterProvider.notifier).equipItem(item);
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                t('item_equipped', params: {'name': item.name}),
+                              ),
+                              backgroundColor: SoloLevelingColors.neonBlue,
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.check_circle),
+                        label: Text(t('equip')),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: SoloLevelingColors.neonBlue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  // Кнопка "Продать" (для материалов и лишних предметов)
+                  if (item.type == ItemType.material ||
+                      item.type == ItemType.consumable) ...[
+                    if (item.type == ItemType.equipment)
+                      const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final totalPrice = sellUnitPrice * slot.quantity;
+
+                          // Используем атомарный метод продажи
+                          await ref
+                              .read(hunterProvider.notifier)
+                              .sellItem(item.id, slot.quantity, sellUnitPrice);
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  t(
+                                    'sold_for',
+                                    params: {'amount': totalPrice.toString()},
+                                  ),
+                                ),
+                                backgroundColor: SoloLevelingColors.warning,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.sell),
+                        label: Text(t('sell')),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: SoloLevelingColors.warning,
+                          foregroundColor: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
           ],
         ),
       ),
@@ -272,4 +288,3 @@ class ItemDetailPopup extends ConsumerWidget {
     }
   }
 }
-

@@ -6,22 +6,25 @@ plugins {
 }
 
 android {
-    namespace = "com.expense.tracker.expense_tracker_flutter"
+    namespace = "com.levelup.levelup"
     compileSdk = flutter.compileSdkVersion
+    // Явная версия: избегает запроса build-tools;35.0.0 при сбоях автоскачивания (достаточно 36.1.0 + platforms;android-36).
+    buildToolsVersion = "36.1.0"
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = JavaVersion.VERSION_1_8.toString()
     }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.expense.tracker.expense_tracker_flutter"
+        applicationId = "com.levelup.levelup"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -37,6 +40,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    // Нужна для `flutter_local_notifications` (Java8 core library desugaring).
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {

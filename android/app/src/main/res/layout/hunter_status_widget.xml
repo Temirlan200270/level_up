@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@android:color/black">
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Level Up"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/stats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="Lv 1 • Gold 0"
+        android:textSize="13sp"
+        android:textColor="#B0B0B0" />
+
+    <TextView
+        android:id="@+id/daily_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="Daily"
+        android:textStyle="bold"
+        android:textSize="12sp"
+        android:textColor="#70D6FF" />
+
+    <TextView
+        android:id="@+id/daily1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/daily2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@android:color/white" />
+
+    <TextView
+        android:id="@+id/daily3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@android:color/white" />
+
+</LinearLayout>
+

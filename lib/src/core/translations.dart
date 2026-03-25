@@ -13,10 +13,11 @@ extension TranslationsExtension on WidgetRef {
 }
 
 /// Расширение для ConsumerWidget/ConsumerStatefulWidget
-String Function(String, {Map<String, String>? params}) useTranslations(WidgetRef ref) {
+String Function(String, {Map<String, String>? params}) useTranslations(
+  WidgetRef ref,
+) {
   ref.watch(translationsProvider); // Следим за изменениями переводов
   return (String key, {Map<String, String>? params}) {
     return TranslationService.translate(key, params: params);
   };
 }
-

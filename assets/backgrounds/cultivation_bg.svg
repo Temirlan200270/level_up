@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <defs>
+    <!-- "C<0= + ;5?5AB:8 2 <>=>E@><5, B8=B 2 Flutter -->
+    <radialGradient id="mistA" cx="30%" cy="25%" r="65%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.00"/>
+    </radialGradient>
+    <radialGradient id="mistB" cx="70%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.07"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.00"/>
+    </radialGradient>
+    <filter id="blur">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#mistA)"/>
+  <rect width="1080" height="1920" fill="url(#mistB)"/>
+
+  <!-- 5?5AB:8: <O3:85 >20;K -->
+  <g opacity="0.22" filter="url(#blur)">
+    <ellipse cx="220" cy="420" rx="18" ry="10" fill="#FFFFFF" fill-opacity="0.20"/>
+    <ellipse cx="300" cy="520" rx="14" ry="8" fill="#FFFFFF" fill-opacity="0.16"/>
+    <ellipse cx="780" cy="460" rx="20" ry="11" fill="#FFFFFF" fill-opacity="0.18"/>
+    <ellipse cx="860" cy="620" rx="16" ry="9" fill="#FFFFFF" fill-opacity="0.16"/>
+
+    <ellipse cx="260" cy="1260" rx="22" ry="12" fill="#FFFFFF" fill-opacity="0.18"/>
+    <ellipse cx="380" cy="1380" rx="16" ry="9" fill="#FFFFFF" fill-opacity="0.14"/>
+    <ellipse cx="720" cy="1320" rx="20" ry="11" fill="#FFFFFF" fill-opacity="0.16"/>
+    <ellipse cx="860" cy="1480" rx="26" ry="14" fill="#FFFFFF" fill-opacity="0.18"/>
+  </g>
+
+  <!-- >@=K9 A8;CMB 2=87C -->
+  <path d="M0 1640 C180 1560 320 1600 460 1540 C620 1470 760 1510 1080 1420 L1080 1920 L0 1920 Z"
+        fill="#FFFFFF" fill-opacity="0.04"/>
+</svg>
+

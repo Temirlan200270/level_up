@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/translations.dart';
+import '../../core/item_rarity_style.dart';
+import '../../core/theme.dart';
+import '../../core/economy_scale.dart';
 
-// Убедись, что пути правильные (зависят от твоей структуры папок)
 import '../../data/items_data.dart';
 import '../../services/providers.dart';
 
@@ -12,9 +14,11 @@ class ShopScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = useTranslations(ref);
+    final dict = ref.watch(activeSystemProvider).dictionary;
     // Получаем текущее количество золота (с защитой от null)
     final gold = ref.watch(hunterProvider.select((h) => h?.gold ?? 0));
-    
+    final hunterLevel = ref.watch(hunterProvider.select((h) => h?.level ?? 1));
+
     // Список товаров из файла данных
     final shopItems = allGameItems;
 
@@ -35,18 +39,22 @@ class ShopScreen extends ConsumerWidget {
             child: Row(
               children: [
                 Text(
-                  '$gold', 
+                  '$gold',
                   style: const TextStyle(
-                    fontSize: 16, 
-                    fontWeight: FontWeight.bold, 
-                    color: Colors.amber
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber,
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
+                const Icon(
+                  Icons.monetization_on,
+                  color: Colors.amber,
+                  size: 20,
+                ),
               ],
             ),
-          )
+          ),
         ],
       ),
       body: ListView.builder(
@@ -54,7 +62,14 @@ class ShopScreen extends ConsumerWidget {
         itemCount: shopItems.length,
         itemBuilder: (context, index) {
           final item = shopItems[index];
-          final canAfford = gold >= item.buyPrice;
+          final price = EconomyScale.scaledShopBuyPrice(
+            item.buyPrice,
+            hunterLevel,
+          );
+          final canAfford = gold >= price;
+          final rarityC =
+              ItemRarityStyle.color(item.rarity, theme: Theme.of(context));
+          final borderCol = canAfford ? rarityC : SoloLevelingColors.error;
 
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
@@ -62,38 +77,42 @@ class ShopScreen extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(
-                color: canAfford ? Colors.grey.withValues(alpha: 0.3) : Colors.red.withValues(alpha: 0.3),
-                width: 1,
+                color: borderCol.withValues(alpha: canAfford ? 0.85 : 0.5),
+                width: 2,
               ),
             ),
+            shadowColor: canAfford ? rarityC.withValues(alpha: 0.35) : null,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: ListTile(
-                // ИКОНКА ПРЕДМЕТА
                 leading: Container(
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: rarityC, width: 1.5),
+                    boxShadow: ItemRarityStyle.glow(
+                      item.rarity,
+                      theme: Theme.of(context),
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(4.0),
                     child: Image.asset(
                       item.iconPath,
                       fit: BoxFit.contain,
-                      // Если картинка не найдена, показываем заглушку
                       errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.help_outline, color: Colors.grey);
+                        return Icon(Icons.inventory_2, color: rarityC);
                       },
                     ),
                   ),
                 ),
-                
+
                 // ОПИСАНИЕ
                 title: Text(
                   item.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: rarityC),
                 ),
                 subtitle: Text(
                   item.description,
@@ -101,29 +120,33 @@ class ShopScreen extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: Colors.grey[400], fontSize: 12),
                 ),
-                
+
                 // КНОПКА ПОКУПКИ
                 trailing: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: canAfford ? Colors.amber : Colors.grey[800],
+                    backgroundColor: canAfford
+                        ? Colors.amber
+                        : Colors.grey[800],
                     foregroundColor: canAfford ? Colors.black : Colors.grey,
                   ),
                   onPressed: canAfford
                       ? () {
                           // Логика покупки
                           ref.read(hunterProvider.notifier).buyItem(item);
-                          
+
                           // Уведомление об успехе
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(t('item_bought', params: {'name': item.name})),
+                              content: Text(
+                                t('item_bought', params: {'name': item.name}),
+                              ),
                               duration: const Duration(seconds: 1),
                               backgroundColor: Colors.green,
                             ),
                           );
                         }
                       : null, // Кнопка отключена, если нет денег
-                  child: Text('${item.buyPrice} ${t('gold')}'),
+                  child: Text('$price ${dict.currencyName}'),
                 ),
               ),
             ),
