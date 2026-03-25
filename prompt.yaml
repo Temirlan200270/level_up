@@ -1,0 +1,196 @@
+project: "Solo Leveling App: System Module"
+version: "1.0 - Skills & Inventory Update"
+description: "Implementation plan for RPG mechanics including Inventory, Equipment, Shop, and Skill System."
+
+# ==========================================
+# 1. MODELS (Структуры данных)
+# Папка: lib/models/
+# ==========================================
+models:
+  enums:
+    - name: ItemRarity
+      values: [common, rare, epic, legendary, mythic]
+      description: "Определяет цвет рамки и редкость выпадения."
+    
+    - name: ItemType
+      values: [consumable, equipment, material, runestone]
+      description: "Определяет поведение предмета (можно использовать, надеть или только продать)."
+
+    - name: SkillType
+      values: [active, passive]
+      description: "Активные требуют нажатия, пассивные работают всегда."
+
+  classes:
+    - name: Item
+      fields:
+        id: String (Unique ID)
+        name: String
+        description: String
+        type: ItemType
+        rarity: ItemRarity
+        iconPath: String
+        sellPrice: int (Gold value)
+        effects: Map<String, dynamic> (e.g., {'xp_boost': 0.1, 'restore_streak': true})
+        
+    - name: InventorySlot
+      fields:
+        item: Item
+        quantity: int
+        isLocked: bool (For future expansions)
+
+    - name: Skill
+      fields:
+        id: String
+        name: String
+        description: String
+        type: SkillType
+        level: int (Current level)
+        maxLevel: int
+        cooldownSeconds: int (For active skills)
+        durationSeconds: int (For buffs like Sprint)
+        requirements: Map<String, int> (e.g., {'min_level': 10, 'strength': 20})
+
+    - name: Player (Update)
+      new_fields:
+        gold: int
+        inventory: List<InventorySlot>
+        equipment: Map<String, Item?> (Keys: 'weapon', 'armor', 'accessory')
+        skills: List<Skill>
+        activeBuffs: List<Buff> (Temporary effects)
+
+# ==========================================
+# 2. LOGIC & STATE (Бизнес-логика)
+# Папка: lib/providers/ или lib/services/
+# ==========================================
+logic:
+  inventory_system:
+    actions:
+      - addItem(Item item, int quantity): "Добавляет предмет или увеличивает кол-во в слоте."
+      - removeItem(String itemId, int quantity): "Удаляет предмет."
+      - useItem(InventorySlot slot):
+          logic: |
+            1. Проверить type == consumable.
+            2. Применить эффект (например, восстановить стрик).
+            3. Уменьшить quantity на 1.
+            4. Если quantity == 0, удалить слот.
+      - equipItem(Item item):
+          logic: |
+            1. Проверить type == equipment.
+            2. Если слот занят, снять текущий предмет (unequip).
+            3. Поместить новый предмет в equipment map.
+            4. Применить пассивные статы предмета к игроку.
+
+  skill_system:
+    actions:
+      - activateSkill(Skill skill):
+          logic: |
+            1. Проверить cooldown (перезарядку).
+            2. Если готов -> Запустить таймер действия (duration).
+            3. Применить эффект (например, x2 XP flag = true).
+            4. По истечении времени -> Снять эффект и запустить таймер cooldown.
+      - upgradeSkill(Skill skill):
+          logic: |
+            1. Проверить наличие очков навыков/золота.
+            2. Увеличить level ++.
+            3. Улучшить параметры эффекта.
+
+  drop_system (RNG):
+    trigger: "On Quest Complete"
+    logic: |
+      Generate random number (0-100).
+      If 0-70 -> Give Gold.
+      If 71-90 -> Give Material (from loot table).
+      If 91-98 -> Give Consumable.
+      If 99-100 -> Give Equipment/Runestone.
+    
+# ==========================================
+# 3. UI COMPONENTS (Виджеты)
+# Папка: lib/widgets/inventory/ & lib/widgets/skills/
+# ==========================================
+ui_components:
+  inventory_screen:
+    widgets:
+      - InventoryGrid: "SliverGrid с карточками предметов."
+      - EquipmentPanel: "3 слота сверху (Оружие, Броня, Аксессуар) с силуэтом."
+      - GoldDisplay: "Виджет отображения золота."
+  
+  item_widgets:
+    - ItemSlotCard:
+        visuals: "Квадрат с иконкой, рамка цвета Rarity, кол-во в углу."
+        interactions: "OnTap -> Открыть ItemDetailPopup."
+    
+    - ItemDetailPopup (ModalBottomSheet):
+        elements:
+          - Title (Color based on Rarity)
+          - Description (Italic text)
+          - Stats/Effects list
+          - Action Buttons (Equip / Use / Sell)
+
+  skill_widgets:
+    - SkillTreeLayout: "Скроллящийся список категорий."
+    - SkillCard:
+        states: [Locked (Grey), Available (Glowing), Cooldown (Overlay timer)]
+        visuals: "Иконка навыка, Уровень, Прогресс бар."
+
+  overlays:
+    - LootNotification: "Красивое всплывающее окно 'ITEM OBTAINED' с анимацией свечения."
+
+# ==========================================
+# 4. GAME DATA PRESETS (База данных предметов)
+# Файл: lib/data/items_data.dart
+# ==========================================
+game_data:
+  materials:
+    - id: "mat_wolf_fang"
+      name: "Wolf Fang"
+      rarity: common
+      desc: "Острый клык. Можно продать в магазин."
+      price: 10
+
+  consumables:
+    - id: "pot_heal_streak"
+      name: "Status Recovery Potion"
+      rarity: rare
+      desc: "Восстанавливает потерянный стрик задач."
+      effect: "restore_streak"
+      price: 500
+
+    - id: "scroll_double_xp"
+      name: "Scroll of Wisdom"
+      rarity: epic
+      desc: "Удваивает опыт на следующий час."
+      effect: "xp_multiplier_2x"
+      duration: 3600
+
+  equipment:
+    - id: "wep_dagger_c"
+      name: "Knight Killer"
+      rarity: epic
+      desc: "+10% к опыту за сложные задачи."
+      slot: "weapon"
+      passive_bonus: {"xp_hard_quest": 0.1}
+
+  skills:
+    - id: "skill_sprint"
+      name: "Sprint"
+      type: active
+      desc: "Заверши задачу за 30 мин и получи x2 награду."
+      cooldown: 86400 (24 hours)
+      
+    - id: "skill_stealth"
+      name: "Stealth"
+      type: passive
+      desc: "Снижает штраф за провал задачи на 20%."
+
+# ==========================================
+# 5. ASSETS (Ресурсы)
+# Папка: assets/icons/
+# ==========================================
+assets_needed:
+  - icon_potion.png
+  - icon_dagger.png
+  - icon_wolf_fang.png
+  - icon_skill_sprint.png
+  - icon_coin.png
+  - sound_item_drop.mp3 (Optional)
+  - sound_level_up.mp3 (Optional)

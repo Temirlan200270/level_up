@@ -1,0 +1,753 @@
+[{
+	"resource": "/C:/expensive tracker/lib/src/data/skills_data.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'SkillType'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 12,
+	"startColumn": 11,
+	"endLineNumber": 12,
+	"endColumn": 20
+},{
+	"resource": "/C:/expensive tracker/lib/src/data/skills_data.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'SkillType'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 21,
+	"startColumn": 11,
+	"endLineNumber": 21,
+	"endColumn": 20
+},{
+	"resource": "/C:/expensive tracker/lib/src/data/skills_data.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'SkillType'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 31,
+	"startColumn": 11,
+	"endLineNumber": 31,
+	"endColumn": 20
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/home/logic/hunter_notifier.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": "todo",
+	"severity": 2,
+	"message": "TODO: Эффекты",
+	"source": "dart",
+	"startLineNumber": 79,
+	"startColumn": 8,
+	"endLineNumber": 79,
+	"endColumn": 21,
+	"modelVersionId": 11
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/home/logic/hunter_notifier.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 80,
+	"startColumn": 5,
+	"endLineNumber": 80,
+	"endColumn": 10,
+	"modelVersionId": 11
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/home/logic/hunter_notifier.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": "todo",
+	"severity": 2,
+	"message": "TODO: Апгрейд",
+	"source": "dart",
+	"startLineNumber": 84,
+	"startColumn": 8,
+	"endLineNumber": 84,
+	"endColumn": 21,
+	"modelVersionId": 11
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/home/logic/hunter_notifier.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 85,
+	"startColumn": 5,
+	"endLineNumber": 85,
+	"endColumn": 10,
+	"modelVersionId": 11
+},{
+	"resource": "/c:/expensive tracker/lib/src/features/hunter/hunter_profile_page.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_getter",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_getter",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The getter 'experience' isn't defined for the type 'Hunter'.\nTry importing the library that defines 'experience', correcting the name to the name of an existing getter, or defining a getter or field named 'experience'.",
+	"source": "dart",
+	"startLineNumber": 232,
+	"startColumn": 37,
+	"endLineNumber": 232,
+	"endColumn": 47
+},{
+	"resource": "/c:/expensive tracker/lib/src/features/hunter/hunter_profile_page.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_getter",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_getter",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The getter 'experienceToNextLevel' isn't defined for the type 'Hunter'.\nTry importing the library that defines 'experienceToNextLevel', correcting the name to the name of an existing getter, or defining a getter or field named 'experienceToNextLevel'.",
+	"source": "dart",
+	"startLineNumber": 232,
+	"startColumn": 60,
+	"endLineNumber": 232,
+	"endColumn": 81
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/inventory/widgets/item_slot_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_class",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_class",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined class 'InventorySlot'.\nTry changing the name to the name of an existing class, or creating a class with the name 'InventorySlot'.",
+	"source": "dart",
+	"startLineNumber": 6,
+	"startColumn": 9,
+	"endLineNumber": 6,
+	"endColumn": 22
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/inventory/widgets/item_slot_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": "todo",
+	"severity": 2,
+	"message": "TODO: Показать ItemDetailPopup",
+	"source": "dart",
+	"startLineNumber": 29,
+	"startColumn": 12,
+	"endLineNumber": 29,
+	"endColumn": 42
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/inventory/widgets/item_slot_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 30,
+	"startColumn": 9,
+	"endLineNumber": 30,
+	"endColumn": 14
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/inventory/widgets/item_slot_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": "todo",
+	"severity": 2,
+	"message": "TODO: Заменить на Image.asset(slot.item.iconPath)",
+	"source": "dart",
+	"startLineNumber": 40,
+	"startColumn": 18,
+	"endLineNumber": 40,
+	"endColumn": 67
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/settings/settings_page.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 505,
+	"startColumn": 17,
+	"endLineNumber": 505,
+	"endColumn": 27,
+	"tags": [
+		2
+	],
+	"modelVersionId": 2
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/settings/settings_page.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 506,
+	"startColumn": 17,
+	"endLineNumber": 506,
+	"endColumn": 26,
+	"tags": [
+		2
+	],
+	"modelVersionId": 2
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/settings/settings_page.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 524,
+	"startColumn": 17,
+	"endLineNumber": 524,
+	"endColumn": 27,
+	"tags": [
+		2
+	],
+	"modelVersionId": 2
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/settings/settings_page.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 525,
+	"startColumn": 17,
+	"endLineNumber": 525,
+	"endColumn": 26,
+	"tags": [
+		2
+	],
+	"modelVersionId": 2
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/shop/shop_screen.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'buyItem' isn't defined for the type 'HunterNotifier'.\nTry correcting the name to the name of an existing method, or defining a method named 'buyItem'.",
+	"source": "dart",
+	"startLineNumber": 112,
+	"startColumn": 61,
+	"endLineNumber": 112,
+	"endColumn": 68,
+	"modelVersionId": 4
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/shop/shop_screen.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 29,
+	"startColumn": 35,
+	"endLineNumber": 29,
+	"endColumn": 46,
+	"tags": [
+		2
+	],
+	"modelVersionId": 4
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/shop/shop_screen.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 31,
+	"startColumn": 54,
+	"endLineNumber": 31,
+	"endColumn": 65,
+	"tags": [
+		2
+	],
+	"modelVersionId": 4
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/shop/shop_screen.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 63,
+	"startColumn": 48,
+	"endLineNumber": 63,
+	"endColumn": 59,
+	"tags": [
+		2
+	],
+	"modelVersionId": 4
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/shop/shop_screen.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 63,
+	"startColumn": 78,
+	"endLineNumber": 63,
+	"endColumn": 89,
+	"tags": [
+		2
+	],
+	"modelVersionId": 4
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/shop/shop_screen.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 75,
+	"startColumn": 41,
+	"endLineNumber": 75,
+	"endColumn": 52,
+	"tags": [
+		2
+	],
+	"modelVersionId": 4
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/skills/skills_screen.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'learnSkill' isn't defined for the type 'HunterNotifier'.\nTry correcting the name to the name of an existing method, or defining a method named 'learnSkill'.",
+	"source": "dart",
+	"startLineNumber": 122,
+	"startColumn": 57,
+	"endLineNumber": 122,
+	"endColumn": 67,
+	"modelVersionId": 2
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/skills/widgets/skill_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'SkillType'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 42,
+	"startColumn": 34,
+	"endLineNumber": 42,
+	"endColumn": 43,
+	"modelVersionId": 3
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/skills/widgets/skill_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'SkillType'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 45,
+	"startColumn": 27,
+	"endLineNumber": 45,
+	"endColumn": 36,
+	"modelVersionId": 3
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/skills/widgets/skill_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'activateSkill' isn't defined for the type 'HunterNotifier'.\nTry correcting the name to the name of an existing method, or defining a method named 'activateSkill'.",
+	"source": "dart",
+	"startLineNumber": 47,
+	"startColumn": 45,
+	"endLineNumber": 47,
+	"endColumn": 58,
+	"modelVersionId": 3
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/skills/widgets/skill_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'spendSkillPointAndUpgradeSkill' isn't defined for the type 'HunterNotifier'.\nTry correcting the name to the name of an existing method, or defining a method named 'spendSkillPointAndUpgradeSkill'.",
+	"source": "dart",
+	"startLineNumber": 58,
+	"startColumn": 45,
+	"endLineNumber": 58,
+	"endColumn": 75,
+	"modelVersionId": 3
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/skills/widgets/skill_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'SkillType'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 62,
+	"startColumn": 25,
+	"endLineNumber": 62,
+	"endColumn": 34,
+	"modelVersionId": 3
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/skills/widgets/skill_card.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_identifier",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_identifier",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "Undefined name 'SkillType'.\nTry correcting the name to one that is defined, or defining the name.",
+	"source": "dart",
+	"startLineNumber": 119,
+	"startColumn": 31,
+	"endLineNumber": 119,
+	"endColumn": 40,
+	"modelVersionId": 3
+},{
+	"resource": "/C:/expensive tracker/lib/src/services/database_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'fromMap' isn't defined for the type 'Hunter'.\nTry correcting the name to the name of an existing method, or defining a method named 'fromMap'.",
+	"source": "dart",
+	"startLineNumber": 41,
+	"startColumn": 21,
+	"endLineNumber": 41,
+	"endColumn": 28
+},{
+	"resource": "/C:/expensive tracker/lib/src/services/database_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'toMap' isn't defined for the type 'Hunter'.\nTry correcting the name to the name of an existing method, or defining a method named 'toMap'.",
+	"source": "dart",
+	"startLineNumber": 51,
+	"startColumn": 37,
+	"endLineNumber": 51,
+	"endColumn": 42
+},{
+	"resource": "/C:/expensive tracker/lib/src/services/providers.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "undefined_method",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/undefined_method",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 8,
+	"message": "The method 'addExperience' isn't defined for the type 'Hunter'.\nTry correcting the name to the name of an existing method, or defining a method named 'addExperience'.",
+	"source": "dart",
+	"startLineNumber": 37,
+	"startColumn": 28,
+	"endLineNumber": 37,
+	"endColumn": 41,
+	"modelVersionId": 5
+},{
+	"resource": "/C:/expensive tracker/lib/src/models/item_model.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "unused_import",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unused_import",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 4,
+	"message": "Unused import: 'package:uuid/uuid.dart'.\nTry removing the import directive.",
+	"source": "dart",
+	"startLineNumber": 1,
+	"startColumn": 8,
+	"endLineNumber": 1,
+	"endColumn": 32
+},{
+	"resource": "/C:/expensive tracker/lib/src/core/theme.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 40,
+	"startColumn": 7,
+	"endLineNumber": 40,
+	"endColumn": 17,
+	"tags": [
+		2
+	]
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/inventory/widgets/equipment_panel.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": "todo",
+	"severity": 2,
+	"message": "TODO: Показать детали предмета или список для экипировки",
+	"source": "dart",
+	"startLineNumber": 30,
+	"startColumn": 12,
+	"endLineNumber": 30,
+	"endColumn": 68,
+	"modelVersionId": 1
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/inventory/widgets/equipment_panel.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "deprecated_member_use",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/deprecated_member_use",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss.\nTry replacing the use of the deprecated member with the replacement.",
+	"source": "dart",
+	"startLineNumber": 36,
+	"startColumn": 31,
+	"endLineNumber": 36,
+	"endColumn": 42,
+	"tags": [
+		2
+	],
+	"modelVersionId": 1
+},{
+	"resource": "/C:/expensive tracker/lib/src/features/inventory/widgets/equipment_panel.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": "todo",
+	"severity": 2,
+	"message": "TODO: Заменить на реальную иконку",
+	"source": "dart",
+	"startLineNumber": 42,
+	"startColumn": 47,
+	"endLineNumber": 42,
+	"endColumn": 80,
+	"modelVersionId": 1
+},{
+	"resource": "/c:/expensive tracker/lib/src/features/quests/quests_page.dart",
+	"owner": "_generated_diagnostic_collection_name_#1",
+	"code": {
+		"value": "sort_child_properties_last",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/sort_child_properties_last",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "The 'child' argument should be last in widget constructor invocations.\nTry moving the argument to the end of the argument list.",
+	"source": "dart",
+	"startLineNumber": 92,
+	"startColumn": 13,
+	"endLineNumber": 92,
+	"endColumn": 50,
+	"modelVersionId": 3
+}]

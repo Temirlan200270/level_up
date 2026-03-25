@@ -1,0 +1,43 @@
+name: expense_tracker_flutter
+description: "Приложение для отслеживания расходов и доходов"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # UI & Icons
+  cupertino_icons: ^1.0.8
+  
+  # State Management
+  flutter_riverpod: 2.6.1
+  
+  # Local Database
+  hive: 2.2.3
+  hive_flutter: 1.1.0
+  path_provider: 2.1.5
+  
+  # Utilities
+  uuid: 4.5.1
+  shared_preferences: 2.5.3
+  
+  # HTTP & API
+  http: ^1.2.2
+  collection: ^1.19.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/translations/
