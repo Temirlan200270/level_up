@@ -8,6 +8,8 @@
 
 # IDE
 .vscode/
+.cursor/
+.gemini/
 .idea/
 *.iml
 
