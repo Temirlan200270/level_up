@@ -4,11 +4,14 @@
 
 ## Killer Features
 
-- **Multiverse-философии**: Solo / Mage / Cultivator / Custom — меняются термины, атмосфера и поведение “Системы”.
-- **Cinematic Onboarding (Фаза 7.5)**: лор → выбор философии → диалог с мастером → генерация стартовых квестов и скрытого класса.
-- **Cloud Sync (Supabase)**: аккаунт + бэкап прогресса в `game_backups` (опционально, работает и локально без облака).
-- **Smart Background & SystemVisuals**: реальные фон-арты + процедурные бэкдропы + “атмосфера мира”.
-- **Социалка (каркас)**: гильдия как отдельный хаб + зал славы/лидерборды (пока мок/скелет, дальше — Supabase).
+- **Multiverse Engine**: Solo / Mage / Cultivator / Custom — раздельные сейвы, словари, `SystemRules` и токены `SystemVisuals` (в т.ч. лёгкое зерно на панелях).
+- **AI Game Master + Smart Anti-Cheat**: `AIService` + локальный/Edge пересчёт ручных квестов (`LocalHeuristicEvaluator`, `AiEdgeEvaluator`).
+- **Hidden Evolution**: скрытые классы и титулы; онбординг выдаёт стартовые квесты и `hiddenClassId`.
+- **Penalty Zone & Blood Moon**: штрафная зона и аномалии с дебаффами и явным UI.
+- **Cinematic Onboarding (7.5)**: портал лора с SVG-артом, параллакс и частицы → философия → мастер → ИИ/fallback.
+- **Offline-first + Cloud Sync**: Hive; опционально Supabase `game_backups` / `public_profiles` через `--dart-define`.
+- **Smart Background**: фоновые SVG по скину; голос Мастера в пушах о дедлайнах и в SnackBar облака.
+- **Социалка (каркас)**: гильдия, зал славы, лидерборды (мок); **Мировые врата (MVP)** — недельный рейд в Hive.
 
 ## Возможности
 
@@ -81,6 +84,13 @@ flutter analyze
 flutter run
 ```
 
+Ключевые флаги:
+
+| Назначение | Пример |
+|------------|--------|
+| Supabase (облако) | `flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...` |
+| Тесты без сети для шрифтов | в `pubspec` подключены локальные Manrope в `assets/fonts/`; в тестах `GoogleFonts.config.allowRuntimeFetching = false` |
+
 ### Сборка релиза (пример Android)
 
 ```bat
@@ -141,6 +151,12 @@ assets/
 ## Дорожная карта
 
 Планы по фазам и актуальные чеклисты: [**plan.md**](plan.md).
+
+## Что дальше (кратко)
+
+- **Сервер:** довести Edge Functions (`onboarding_init`, `analyze_quest`, будущие `detect_patterns`) — строгая схема, санитайзинг, таймауты (`plan.md`, фазы 7.5–8).
+- **Социалка:** лидерборды и мировые врата — агрегаты в Supabase, награды за закрытие рейда.
+- **Релиз:** больше widget-тестов, ретро-синхронизация офлайн-оценок квестов, SFX/эмбиент по философиям, Health / wearables.
 
 ## Версия
 

@@ -7,8 +7,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/promo_ui.dart';
-import '../../core/theme.dart';
+import '../../core/system_visuals_extension.dart';
 import '../../core/translations.dart';
+import '../../core/widgets/world_surface_panel.dart';
 import '../../services/supabase/supabase_config.dart';
 
 class AccountPage extends ConsumerStatefulWidget {
@@ -133,19 +134,39 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   @override
   Widget build(BuildContext context) {
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     final authEnabled = _user == null;
     final statusPillLabel = !SupabaseConfig.isConfigured
         ? t('account_status_local_only')
         : _user == null
             ? t('account_status_need_sign_in')
             : t('account_status_active');
+    final visuals = Theme.of(context).extension<SystemVisuals>() ??
+        const SystemVisuals(
+          backgroundKind: SystemBackgroundKind.grid,
+          backgroundAssetPath: '',
+          particlesKind: SystemParticlesKind.none,
+          panelRadius: 12,
+          panelBorderWidth: 1,
+          panelBlur: 0,
+          titleLetterSpacing: 2.2,
+          surfaceKind: SystemSurfaceKind.digital,
+          glowIntensity: 0.35,
+          borderRadiusScale: 1.0,
+          shadowProfile: SystemShadowProfile.soft,
+        );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: ProfileBackdrop(
         child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+            child: WorldSurfacePanel(
+              visuals: visuals,
+              margin: EdgeInsets.zero,
+              child: CustomScrollView(
+                slivers: [
               SliverAppBar(
                 floating: true,
                 backgroundColor: Colors.transparent,
@@ -159,7 +180,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 28),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -171,7 +192,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                             Text(
                               t('account_title'),
                               style: GoogleFonts.manrope(
-                                color: SoloLevelingColors.textPrimary,
+                                color: scheme.onSurface,
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
                                 height: 1.2,
@@ -183,7 +204,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                             Text(
                               t('account_body'),
                               style: GoogleFonts.manrope(
-                                color: SoloLevelingColors.textSecondary,
+                                color: scheme.onSurfaceVariant,
                                 height: 1.45,
                               ),
                             ),
@@ -192,7 +213,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                               Text(
                                 t('cloud_sync_need_dart_define'),
                                 style: GoogleFonts.manrope(
-                                  color: SoloLevelingColors.warning,
+                                  color: scheme.tertiary,
                                   fontWeight: FontWeight.w700,
                                   height: 1.45,
                                 ),
@@ -203,7 +224,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                               Text(
                                 _errorText!,
                                 style: GoogleFonts.manrope(
-                                  color: SoloLevelingColors.error,
+                                  color: scheme.error,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   height: 1.35,
@@ -214,15 +235,15 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                             if (_user != null) ...[
                               Text(
                                 t('cloud_sync_signed_in_as'),
-                                style: const TextStyle(
-                                  color: SoloLevelingColors.textTertiary,
+                                style: GoogleFonts.manrope(
+                                  color: scheme.outline,
                                   fontSize: 12,
                                 ),
                               ),
                               Text(
                                 _user!.email ?? _user!.id,
-                                style: const TextStyle(
-                                  color: SoloLevelingColors.neonBlue,
+                                style: GoogleFonts.manrope(
+                                  color: scheme.primary,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -239,7 +260,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                                     !_busy && authEnabled && SupabaseConfig.isConfigured,
                                 keyboardType: TextInputType.emailAddress,
                                 style: GoogleFonts.manrope(
-                                  color: SoloLevelingColors.textPrimary,
+                                  color: scheme.onSurface,
                                   fontSize: 15,
                                 ),
                                 decoration: promoInputDecoration(
@@ -253,7 +274,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                                     !_busy && authEnabled && SupabaseConfig.isConfigured,
                                 obscureText: true,
                                 style: GoogleFonts.manrope(
-                                  color: SoloLevelingColors.textPrimary,
+                                  color: scheme.onSurface,
                                   fontSize: 15,
                                 ),
                                 decoration: promoInputDecoration(
@@ -298,7 +319,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                   ),
                 ),
               ),
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

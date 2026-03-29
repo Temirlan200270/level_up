@@ -79,6 +79,7 @@ class SkillCard extends ConsumerWidget {
               final systemId = ref.read(activeSystemIdProvider);
               ref.read(focusSessionProvider.notifier).state = FocusSessionState(
                 endsAt: DateTime.now().add(Duration(seconds: dur)),
+                plannedDurationSeconds: dur,
                 closedMeditation: systemId == SystemId.cultivator,
               );
             }

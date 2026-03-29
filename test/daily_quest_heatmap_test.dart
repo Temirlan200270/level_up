@@ -1,5 +1,5 @@
-import 'package:expense_tracker_flutter/src/core/daily_quest_heatmap.dart';
-import 'package:expense_tracker_flutter/src/models/quest_model.dart';
+import 'package:level_up/src/core/daily_quest_heatmap.dart';
+import 'package:level_up/src/models/quest_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

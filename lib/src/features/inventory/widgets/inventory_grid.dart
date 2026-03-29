@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/system_visuals_extension.dart';
 import '../../../services/providers.dart';
 import 'item_slot_card.dart';
 
@@ -30,6 +31,7 @@ class InventoryGrid extends ConsumerWidget {
           return ItemSlotCard(slot: slot);
         }
         return _EmptySlotCard(
+          radius: context.worldCardRadius,
           border: scheme.secondary.withValues(alpha: 0.20),
           icon: scheme.onSurface.withValues(alpha: 0.22),
         );
@@ -39,7 +41,12 @@ class InventoryGrid extends ConsumerWidget {
 }
 
 class _EmptySlotCard extends StatelessWidget {
-  const _EmptySlotCard({required this.border, required this.icon});
+  const _EmptySlotCard({
+    required this.radius,
+    required this.border,
+    required this.icon,
+  });
+  final double radius;
   final Color border;
   final Color icon;
 
@@ -47,7 +54,7 @@ class _EmptySlotCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: border, width: 1.5),
         color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.20),
       ),

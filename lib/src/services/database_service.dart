@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:hive_flutter/hive_flutter.dart';
+import '../core/progression_gates.dart';
+import 'translation_service.dart';
 import '../core/experience_curve.dart';
 import '../core/story_milestone_seed.dart';
 import '../core/tutorial_quests_seed.dart';
@@ -13,6 +15,66 @@ import '../models/buff_model.dart';
 import '../models/hunter_model.dart';
 import '../models/quest_model.dart';
 import '../models/dungeon_model.dart';
+
+/// Снимок прогресса ивента «Мировые врата» (локальный MVP).
+class WorldGateSnapshot {
+  const WorldGateSnapshot({
+    required this.personalContribution,
+    required this.communityProgressTotal,
+    required this.goal,
+    required this.weekKey,
+  });
+
+  /// Очки с телесных/спортивных квестов за эту неделю.
+  final int personalContribution;
+
+  /// Суммарный прогресс для полосы (симуляция сообщества + личный вклад).
+  final int communityProgressTotal;
+
+  final int goal;
+
+  /// Ключ недели (UTC, понедельник).
+  final String weekKey;
+
+  double get progressFraction =>
+      goal <= 0 ? 0 : (communityProgressTotal / goal).clamp(0.0, 1.0);
+}
+
+/// Снимок «рейда фокуса» гильдии: месячная цель + накопленный Guild XP (локальный MVP).
+class GuildFocusRaidSnapshot {
+  const GuildFocusRaidSnapshot({
+    required this.personalFocusMinutesMonth,
+    required this.communityProgressTotal,
+    required this.goalMinutes,
+    required this.guildXp,
+    required this.guildLevel,
+    required this.goldBonusPercent,
+    required this.monthKey,
+  });
+
+  /// Личные минуты фокуса за текущий календарный месяц (UTC).
+  final int personalFocusMinutesMonth;
+
+  /// Сумма для полосы: min(личные + симуляция сообщества, цель).
+  final int communityProgressTotal;
+
+  final int goalMinutes;
+
+  /// Накопительный XP гильдии (не сбрасывается при смене месяца).
+  final int guildXp;
+
+  /// Уровень гильдии от Guild XP (для UI и бонуса к золоту).
+  final int guildLevel;
+
+  /// Пассивный бонус к золоту с квестов, % (кап для MVP).
+  final int goldBonusPercent;
+
+  final String monthKey;
+
+  double get progressFraction => goalMinutes <= 0
+      ? 0
+      : (communityProgressTotal / goalMinutes).clamp(0.0, 1.0);
+}
 
 class DatabaseService {
   static const String settingsBox = 'settings';
@@ -32,16 +94,39 @@ class DatabaseService {
   /// Задача: если квест просрочен и всё ещё `active`, перевести в `failed/expired`
   /// и применить базовые штрафы (gold/exp, сброс стрика, penalty_zone для mandatory).
   ///
-  /// Важно: это “скелет”. Дальше можно:
-  /// - подключить системные правила (`SystemRules`) для маппинга штрафов,
-  /// - добавить спавн penalty-quest,
-  /// - покрыть widget/UI уведомлениями.
+  /// Спавнит один активный штрафной квест Системы, если его ещё нет (для фона/workmanager).
+  static Future<void> spawnPenaltyQuestIfAbsent() async {
+    final active = getAllQuests()
+        .where((q) => q.status == QuestStatus.active && !q.isExpired)
+        .toList();
+    final has = active.any((q) => q.type == QuestType.penalty);
+    if (has) return;
+
+    final variant = 1 + Random().nextInt(3);
+    final title = TranslationService.translate('penalty_quest_title_$variant');
+    final desc = TranslationService.translate('penalty_quest_desc_$variant');
+    await addQuest(
+      Quest(
+        title: title,
+        description: desc,
+        type: QuestType.penalty,
+        mandatory: true,
+        difficulty: 5,
+        experienceReward: 10,
+        goldReward: 6,
+        tags: const ['penalty', 'system'],
+        expiresAt: DateTime.now().add(const Duration(hours: 72)),
+      ),
+    );
+  }
+
   static Future<int> applyQuestDeadlinesInBackground() async {
     refreshWorldEventState();
     final hunter = getHunter();
     if (hunter == null) return 0;
 
     final now = DateTime.now();
+    final sanctuaryActive = hunter.isSanctuaryActive;
     final all = getAllQuests(includeAllSystems: true);
     final expiredActive = all
         .where((q) => q.status == QuestStatus.active && q.expiresAt != null)
@@ -60,31 +145,40 @@ class DatabaseService {
         ensureSystemTag: false,
       );
 
+      // Провал этапа данжа при любом закрытии квеста по дедлайну.
+      await failDungeonOnStageFail(q);
+
       if (!penalize) continue;
 
-      // Базовые штрафы (без system rules, чтобы фон был безопасным).
-      final m =
-          updatedHunter.questFailurePenaltyMultiplier *
-          getWorldEventFailurePenaltyMultiplier();
-      final goldLoss = ((10 + updatedHunter.level * 2) * m).round();
-      final expLoss = updatedHunter.currentExp * 0.05 * m;
+      // Святилище: дедлайны и статусы квестов обрабатываем, золото/опыт/зона не трогаем.
+      if (!sanctuaryActive) {
+        // Базовые штрафы (без system rules, чтобы фон был безопасным).
+        final m =
+            updatedHunter.questFailurePenaltyMultiplier *
+            getWorldEventFailurePenaltyMultiplier();
+        final goldLoss = ((10 + updatedHunter.level * 2) * m).round();
+        final expLoss = updatedHunter.currentExp * 0.05 * m;
 
-      updatedHunter = updatedHunter.copyWith(
-        gold: max(0, updatedHunter.gold - goldLoss),
-        currentExp: max(0.0, updatedHunter.currentExp - expLoss),
-        dailyQuestStreak: 0,
-      );
-
-      if (q.mandatory && q.type != QuestType.penalty) {
-        final without = updatedHunter.activeBuffs
-            .where((b) => b.effectId != 'penalty_zone')
-            .toList();
-        final debuff = Buff(
-          effectId: 'penalty_zone',
-          value: 0.5,
-          expiresAt: DateTime.now().add(const Duration(hours: 48)),
+        updatedHunter = updatedHunter.copyWith(
+          gold: max(0, updatedHunter.gold - goldLoss),
+          currentExp: max(0.0, updatedHunter.currentExp - expLoss),
+          dailyQuestStreak: 0,
         );
-        updatedHunter = updatedHunter.copyWith(activeBuffs: [...without, debuff]);
+
+        if (q.mandatory && q.type != QuestType.penalty) {
+          final without = updatedHunter.activeBuffs
+              .where((b) => b.effectId != 'penalty_zone')
+              .toList();
+          final debuff = Buff(
+            effectId: 'penalty_zone',
+            value: 0.5,
+            expiresAt: DateTime.now().add(const Duration(hours: 48)),
+          );
+          updatedHunter = updatedHunter.copyWith(
+            activeBuffs: [...without, debuff],
+          );
+          await spawnPenaltyQuestIfAbsent();
+        }
       }
     }
 
@@ -563,6 +657,29 @@ class DatabaseService {
   static const String _kAchievements = 'achievement_ids';
   static const String _kAchievementsBySystem = 'achievement_ids_by_system_json';
   static const String _kGuildName = 'guild_name';
+  static const String _kWorldGateWeekKey = 'world_gate_week_key_v1';
+  static const String _kWorldGatePersonal = 'world_gate_personal_v1';
+  static const String _kWorldGateSim = 'world_gate_sim_community_v1';
+
+  /// Цель рейда за календарную неделю (локальный MVP).
+  static const int worldGateWeeklyGoal = 10000;
+
+  static const String _kGuildFocusRaidMonthKey = 'guild_focus_raid_month_v1';
+  static const String _kGuildFocusRaidPersonalMin =
+      'guild_focus_raid_personal_min_v1';
+  static const String _kGuildFocusRaidSimMin = 'guild_focus_raid_sim_min_v1';
+  static const String _kGuildRaidXp = 'guild_focus_raid_guild_xp_v1';
+
+  /// Цель месячного рейда по минутам фокуса (локальный MVP).
+  static const int guildFocusRaidMonthlyGoalMinutes = 600;
+
+  /// Дневная цель минут фокуса для полосы «MP» в живой шапке квестов.
+  static const int livingHeaderFocusDailyGoalMinutes = 30;
+
+  static const String _kLivingHeaderFocusDay = 'living_header_focus_day_v1';
+  static const String _kLivingHeaderFocusMinutesToday =
+      'living_header_focus_min_today_v1';
+
   static const String _kSocialDisplayName = 'social_display_name';
   static const String _kSocialDiscriminator = 'social_discriminator_4';
   static const String _kOnboardingPersonaPrefix = 'onboarding_persona_v1_';
@@ -577,6 +694,7 @@ class DatabaseService {
   static const String _kCustomSystemAiToneHint = 'custom_system_ai_tone_hint';
   static const String _kCustomSystemAiUserPrompt = 'custom_system_ai_user_prompt';
   static const String _kCustomSystemSlugsIndex = 'custom_system_slugs_index_json';
+  static const String _kWorldJournalSnackPrefix = 'world_journal_snack_v1_';
 
   // Slug-scoped (multi-world) keys.
   static const String _kCustomSystemDictionaryPrefix =
@@ -601,6 +719,71 @@ class DatabaseService {
       'custom_system_panel_radius_';
   static const String _kStatLabels = 'stat_labels_json';
   static const String _kDungeonsJson = 'dungeons_json';
+  static const String _kAdaptiveCalibrationLastPrompt = 'adaptive_calibration_last_prompt';
+  static const String _kLaboratoryUnlockMasterHint = 'laboratory_unlock_master_hint_v1';
+
+  static bool hasSeenLaboratoryUnlockMasterHint() {
+    return Hive.box(settingsBox).get(_kLaboratoryUnlockMasterHint) == true;
+  }
+
+  static Future<void> setSeenLaboratoryUnlockMasterHint() async {
+    await Hive.box(settingsBox).put(_kLaboratoryUnlockMasterHint, true);
+  }
+
+  static String? getAdaptiveCalibrationLastPrompt() {
+    return Hive.box(settingsBox).get(_kAdaptiveCalibrationLastPrompt) as String?;
+  }
+
+  static Future<void> setAdaptiveCalibrationLastPrompt(String isoDate) async {
+    await Hive.box(settingsBox).put(_kAdaptiveCalibrationLastPrompt, isoDate);
+  }
+
+  // === UX: одноразовые подсказки при первом входе на вкладку после разблокировки ===
+
+  static String _featureUnlockHintFlagKey(int tabIndex) =>
+      'feature_unlock_hint_v1_tab_$tabIndex';
+
+  static Future<bool> tryConsumeFeatureUnlockHint({
+    required int tabIndex,
+    required int hunterLevel,
+  }) async {
+    final gate = switch (tabIndex) {
+      2 => ProgressionGates.inventoryMinLevel,
+      3 => ProgressionGates.guildMinLevel,
+      4 => ProgressionGates.dungeonsMinLevel,
+      5 => ProgressionGates.skillsMinLevel,
+      _ => -1,
+    };
+    if (gate < 0 || hunterLevel < gate) return false;
+    final box = Hive.box(settingsBox);
+    final k = _featureUnlockHintFlagKey(tabIndex);
+    if (box.get(k, defaultValue: false) == true) return false;
+    await box.put(k, true);
+    return true;
+  }
+
+  static const String _kSoundEffectsEnabled = 'sound_effects_enabled_v1';
+
+  static bool isSoundEffectsEnabled() {
+    final v = Hive.box(settingsBox).get(_kSoundEffectsEnabled);
+    if (v == null) return true;
+    return v == true;
+  }
+
+  static Future<void> setSoundEffectsEnabled(bool value) async {
+    await Hive.box(settingsBox).put(_kSoundEffectsEnabled, value);
+  }
+
+  static const String _kLowFxMode = 'low_fx_mode_v1';
+
+  static bool isLowFxModeEnabled() {
+    return Hive.box(settingsBox).get(_kLowFxMode) == true;
+  }
+
+  static Future<void> setLowFxModeEnabled(bool value) async {
+    await Hive.box(settingsBox).put(_kLowFxMode, value);
+  }
+
   static const String _kBestLevel = 'record_best_level';
   static const String _kBestGold = 'record_best_gold';
   static const String _kRecordsBySystem = 'records_by_system_json';
@@ -662,7 +845,7 @@ class DatabaseService {
     // Новая кинематографичная цепочка (Фаза 7.5) приоритетнее legacy.
     // Если пользователь ещё не прошёл философию — начинаем с лора.
     if (!isSystemSelectionShown()) {
-      await setOnboardingStep(OnboardingStep.needLore, systemId: id);
+      await setOnboardingStep(OnboardingStep.needAbyssPortal, systemId: id);
       return;
     }
 
@@ -1064,22 +1247,47 @@ class DatabaseService {
     final title = dungeon.stageTitles[stageIndex];
     final desc = dungeon.stageDescriptions[stageIndex];
 
+    final isRedGate = dungeon.isRedGate;
+    final expMultiplier = isRedGate ? 2.5 : 1.0;
+    final goldMultiplier = isRedGate ? 2.0 : 1.0;
+
+    final n = dungeon.totalStages;
+    final hasAiRewards = dungeon.stageExpRewards.length == n &&
+        dungeon.stageGoldRewards.length == n &&
+        dungeon.stageDifficulties.length == n;
+
+    final rawExp = hasAiRewards
+        ? dungeon.stageExpRewards[stageIndex]
+        : 35;
+    final rawGold = hasAiRewards
+        ? dungeon.stageGoldRewards[stageIndex]
+        : 25;
+    final experienceReward =
+        (rawExp * expMultiplier).round().clamp(10, 800);
+    final goldReward =
+        (rawGold * goldMultiplier).round().clamp(5, 500);
+    final difficulty = (hasAiRewards
+            ? dungeon.stageDifficulties[stageIndex]
+            : (isRedGate ? 5 : 3))
+        .clamp(1, 10);
+
     // Важное: спавним только текущий этап, следующий появится после complete.
     await addQuest(
       Quest(
         title: title,
         description: desc,
         type: QuestType.special,
-        experienceReward: 35,
-        goldReward: 25,
-        statPointsReward: 1,
+        experienceReward: experienceReward,
+        goldReward: goldReward,
+        statPointsReward: isRedGate ? 2 : 1,
         tags: [
           'dungeon',
           _dungeonTag(dungeon.id),
           _dungeonStageTag(stageIndex),
           'system',
+          if (isRedGate) 'red_gate',
         ],
-        difficulty: 3,
+        difficulty: difficulty,
         mandatory: true,
         expiresAt: DateTime.now().add(const Duration(hours: 72)),
       ),
@@ -1367,6 +1575,213 @@ class DatabaseService {
     }
   }
 
+  static String _worldGateCurrentWeekKeyUtc() {
+    final n = DateTime.now().toUtc();
+    final dayUtc = DateTime.utc(n.year, n.month, n.day);
+    final monday = dayUtc.subtract(Duration(days: n.weekday - 1));
+    return '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
+  }
+
+  static Future<void> _ensureWorldGateWeek() async {
+    final box = Hive.box(settingsBox);
+    final cur = _worldGateCurrentWeekKeyUtc();
+    final stored = box.get(_kWorldGateWeekKey) as String?;
+    if (stored != cur) {
+      await box.put(_kWorldGateWeekKey, cur);
+      await box.put(_kWorldGatePersonal, 0);
+      final base = 3200 + (cur.hashCode.abs() % 2400);
+      await box.put(_kWorldGateSim, base);
+    }
+  }
+
+  static bool _questCountsForWorldGate(Quest q) {
+    final tags = q.tags.map((e) => e.toLowerCase()).toList();
+    final body = '${q.title} ${q.description}'.toLowerCase();
+    const keys = [
+      'sport',
+      'workout',
+      'body',
+      'strength',
+      'run',
+      'gym',
+      'training',
+      'fitness',
+      'physical',
+      'walk',
+      'cardio',
+      'stretch',
+      'отжим',
+      'подтяг',
+      'присед',
+      'пробеж',
+      'спорт',
+      'тело',
+      'зарядк',
+      'трениров',
+    ];
+    return keys.any(
+      (k) => tags.any((t) => t.contains(k)) || body.contains(k),
+    );
+  }
+
+  /// Та же эвристика, что для «Мировых врат» — телесные/спортивные квесты (шапка HP).
+  static bool questIsPhysicalForLivingHeader(Quest q) =>
+      _questCountsForWorldGate(q);
+
+  /// Учитывает завершённый квест в прогрессе «Мировых врат» (телесный/спортивный фокус).
+  static Future<void> recordWorldGateContributionFromQuest(Quest q) async {
+    if (!_questCountsForWorldGate(q)) return;
+    await _ensureWorldGateWeek();
+    final box = Hive.box(settingsBox);
+    final delta = (q.difficulty * 2).clamp(2, 10);
+    final p = (box.get(_kWorldGatePersonal) as int?) ?? 0;
+    await box.put(_kWorldGatePersonal, p + delta);
+    final sim = (box.get(_kWorldGateSim) as int?) ?? 0;
+    await box.put(_kWorldGateSim, sim + delta * 4);
+  }
+
+  static Future<WorldGateSnapshot> getWorldGateSnapshot() async {
+    await _ensureWorldGateWeek();
+    final box = Hive.box(settingsBox);
+    final p = (box.get(_kWorldGatePersonal) as int?) ?? 0;
+    final sim = (box.get(_kWorldGateSim) as int?) ?? 0;
+    final total = p + sim;
+    final g = worldGateWeeklyGoal;
+    final capped = total > g ? g : total;
+    return WorldGateSnapshot(
+      personalContribution: p,
+      communityProgressTotal: capped,
+      goal: g,
+      weekKey: (box.get(_kWorldGateWeekKey) as String?) ?? '',
+    );
+  }
+
+  static String _guildFocusRaidMonthKeyUtc() {
+    final n = DateTime.now().toUtc();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}';
+  }
+
+  static Future<void> _ensureGuildFocusRaidMonth() async {
+    final box = Hive.box(settingsBox);
+    final cur = _guildFocusRaidMonthKeyUtc();
+    final stored = box.get(_kGuildFocusRaidMonthKey) as String?;
+    if (stored != cur) {
+      await box.put(_kGuildFocusRaidMonthKey, cur);
+      await box.put(_kGuildFocusRaidPersonalMin, 0);
+      final base = 180 + (cur.hashCode.abs() % 220);
+      await box.put(_kGuildFocusRaidSimMin, base);
+    }
+  }
+
+  /// Уровень гильдии по накопленному Guild XP (MVP-формула).
+  static int guildLevelFromGuildRaidXp(int xp) {
+    if (xp <= 0) return 1;
+    return (1 + (xp / 400).floor()).clamp(1, 99);
+  }
+
+  /// Бонус к золоту с квестов: до 10% от уровня гильдии (MVP).
+  static int guildGoldBonusPercentFromLevel(int guildLevel) {
+    return (guildLevel - 1).clamp(0, 10);
+  }
+
+  /// Множитель золота за квесты (синхронно, без await).
+  static double getGuildGoldBonusMultiplier() {
+    final xp = (Hive.box(settingsBox).get(_kGuildRaidXp) as int?) ?? 0;
+    final lv = guildLevelFromGuildRaidXp(xp);
+    final pct = guildGoldBonusPercentFromLevel(lv);
+    return 1.0 + pct / 100.0;
+  }
+
+  /// Засчитывает полностью завершённую фокус-сессию (навык «Медитация» / focus).
+  static Future<void> recordGuildFocusRaidCompletion(
+    int plannedDurationSeconds,
+  ) async {
+    if (plannedDurationSeconds < 60) return;
+    final mins =
+        (plannedDurationSeconds / 60).floor().clamp(1, 24 * 60);
+    await _ensureGuildFocusRaidMonth();
+    final box = Hive.box(settingsBox);
+    final p = (box.get(_kGuildFocusRaidPersonalMin) as int?) ?? 0;
+    await box.put(_kGuildFocusRaidPersonalMin, p + mins);
+    final sim = (box.get(_kGuildFocusRaidSimMin) as int?) ?? 0;
+    await box.put(_kGuildFocusRaidSimMin, sim + mins * 3);
+    var xp = (box.get(_kGuildRaidXp) as int?) ?? 0;
+    xp += mins * 2;
+    await box.put(_kGuildRaidXp, xp);
+    await _addFocusMinutesToday(mins);
+  }
+
+  static String _livingHeaderLocalDayKey() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Минуты фокуса за сегодня (локальный календарный день) для шапки квестов.
+  static Future<void> _addFocusMinutesToday(int minutes) async {
+    if (minutes <= 0) return;
+    final box = Hive.box(settingsBox);
+    final day = _livingHeaderLocalDayKey();
+    final stored = box.get(_kLivingHeaderFocusDay) as String?;
+    if (stored != day) {
+      await box.put(_kLivingHeaderFocusDay, day);
+      await box.put(_kLivingHeaderFocusMinutesToday, 0);
+    }
+    final cur = (box.get(_kLivingHeaderFocusMinutesToday) as int?) ?? 0;
+    await box.put(_kLivingHeaderFocusMinutesToday, cur + minutes);
+  }
+
+  static int getFocusMinutesToday() {
+    final box = Hive.box(settingsBox);
+    final day = _livingHeaderLocalDayKey();
+    if ((box.get(_kLivingHeaderFocusDay) as String?) != day) return 0;
+    return (box.get(_kLivingHeaderFocusMinutesToday) as int?) ?? 0;
+  }
+
+  /// Локальная статистика активного сейва для таблиц лидеров (без сети).
+  static ({
+    int storyCompleted,
+    int nonPenaltyCompleted,
+    int dailyStreak,
+  }) getLeaderboardLocalStats() {
+    final quests = getAllQuests();
+    final h = getHunter();
+    var story = 0;
+    var wins = 0;
+    for (final q in quests) {
+      if (q.status != QuestStatus.completed) continue;
+      if (q.type == QuestType.penalty) continue;
+      wins++;
+      if (q.type == QuestType.story) story++;
+    }
+    return (
+      storyCompleted: story,
+      nonPenaltyCompleted: wins,
+      dailyStreak: h?.dailyQuestStreak ?? 0,
+    );
+  }
+
+  static Future<GuildFocusRaidSnapshot> getGuildFocusRaidSnapshot() async {
+    await _ensureGuildFocusRaidMonth();
+    final box = Hive.box(settingsBox);
+    final personal = (box.get(_kGuildFocusRaidPersonalMin) as int?) ?? 0;
+    final sim = (box.get(_kGuildFocusRaidSimMin) as int?) ?? 0;
+    final goal = guildFocusRaidMonthlyGoalMinutes;
+    final rawTotal = personal + sim;
+    final capped = rawTotal > goal ? goal : rawTotal;
+    final xp = (box.get(_kGuildRaidXp) as int?) ?? 0;
+    final lv = guildLevelFromGuildRaidXp(xp);
+    final bonus = guildGoldBonusPercentFromLevel(lv);
+    return GuildFocusRaidSnapshot(
+      personalFocusMinutesMonth: personal,
+      communityProgressTotal: capped,
+      goalMinutes: goal,
+      guildXp: xp,
+      guildLevel: lv,
+      goldBonusPercent: bonus,
+      monthKey: (box.get(_kGuildFocusRaidMonthKey) as String?) ?? '',
+    );
+  }
+
   static String getSocialDisplayName({Hunter? fallbackHunter}) {
     final box = Hive.box(settingsBox);
     final v = (box.get(_kSocialDisplayName) as String?)?.trim();
@@ -1424,6 +1839,32 @@ class DatabaseService {
 
   static Future<void> setSystemSelectionShown(bool shown) async {
     await Hive.box(settingsBox).put(_kSystemSelectionShown, shown);
+  }
+
+  static String _worldJournalSnackHiveKey(String axis, String tier) =>
+      '$_kWorldJournalSnackPrefix${_activeSystemMetaKey()}_${axis}_$tier';
+
+  /// Уже показывали SnackBar о пороге дневника для этой оси/уровня в текущей мета-вселенной.
+  static bool isWorldJournalSnackShown(String axis, String tier) {
+    final box = Hive.box(settingsBox);
+    return box.get(_worldJournalSnackHiveKey(axis, tier), defaultValue: false) ==
+        true;
+  }
+
+  static Future<void> markWorldJournalSnackShown(String axis, String tier) async {
+    await Hive.box(settingsBox).put(_worldJournalSnackHiveKey(axis, tier), true);
+  }
+
+  /// Для бэкапа: какие пороги дневника уже отметили SnackBar (ключи Hive как есть).
+  static Map<String, bool> exportWorldJournalSnackFlags() {
+    final box = Hive.box(settingsBox);
+    final out = <String, bool>{};
+    for (final k in box.keys.whereType<String>()) {
+      if (k.startsWith(_kWorldJournalSnackPrefix) && box.get(k) == true) {
+        out[k] = true;
+      }
+    }
+    return out;
   }
 
   static Map<String, String> getStatLabelOverrides() {
@@ -1545,6 +1986,13 @@ class DatabaseService {
     await box.delete(_kCustomSystemAiVoiceName);
     await box.delete(_kCustomSystemAiToneHint);
     await box.delete(_kCustomSystemAiUserPrompt);
+    final wjKeys = box.keys
+        .whereType<String>()
+        .where((k) => k.startsWith(_kWorldJournalSnackPrefix))
+        .toList();
+    for (final k in wjKeys) {
+      await box.delete(k);
+    }
   }
 
   static String exportGameBackupJson() {
@@ -1706,6 +2154,25 @@ class DatabaseService {
         'recordsBySystem': settings.get(_kRecordsBySystem),
         // New multi-custom catalog.
         'customSystems': customSystems,
+        'worldJournalSnackShown': exportWorldJournalSnackFlags(),
+        'soundEffectsEnabled': isSoundEffectsEnabled(),
+        'worldGate': {
+          'weekKey': settings.get(_kWorldGateWeekKey),
+          'personal': settings.get(_kWorldGatePersonal, defaultValue: 0),
+          'simCommunity': settings.get(_kWorldGateSim, defaultValue: 0),
+        },
+        'guildFocusRaid': {
+          'monthKey': settings.get(_kGuildFocusRaidMonthKey),
+          'personalMinutes':
+              settings.get(_kGuildFocusRaidPersonalMin, defaultValue: 0),
+          'simMinutes': settings.get(_kGuildFocusRaidSimMin, defaultValue: 0),
+          'guildXp': settings.get(_kGuildRaidXp, defaultValue: 0),
+        },
+        'livingHeaderFocus': {
+          'localDay': settings.get(_kLivingHeaderFocusDay),
+          'minutesToday':
+              settings.get(_kLivingHeaderFocusMinutesToday, defaultValue: 0),
+        },
       },
       'exportedAt': DateTime.now().toIso8601String(),
     });
@@ -1872,6 +2339,54 @@ class DatabaseService {
       if (m.containsKey('systemSelectionShown')) {
         await box.put(_kSystemSelectionShown, m['systemSelectionShown'] == true);
       }
+      if (m.containsKey('soundEffectsEnabled')) {
+        await setSoundEffectsEnabled(m['soundEffectsEnabled'] == true);
+      }
+      if (m['worldGate'] is Map) {
+        final wg = Map<String, dynamic>.from(m['worldGate'] as Map);
+        if (wg['weekKey'] != null) {
+          await box.put(_kWorldGateWeekKey, wg['weekKey'].toString());
+        }
+        if (wg['personal'] != null) {
+          await box.put(_kWorldGatePersonal, (wg['personal'] as num).toInt());
+        }
+        if (wg['simCommunity'] != null) {
+          await box.put(_kWorldGateSim, (wg['simCommunity'] as num).toInt());
+        }
+      }
+      if (m['guildFocusRaid'] is Map) {
+        final gr = Map<String, dynamic>.from(m['guildFocusRaid'] as Map);
+        if (gr['monthKey'] != null) {
+          await box.put(_kGuildFocusRaidMonthKey, gr['monthKey'].toString());
+        }
+        if (gr['personalMinutes'] != null) {
+          await box.put(
+            _kGuildFocusRaidPersonalMin,
+            (gr['personalMinutes'] as num).toInt(),
+          );
+        }
+        if (gr['simMinutes'] != null) {
+          await box.put(
+            _kGuildFocusRaidSimMin,
+            (gr['simMinutes'] as num).toInt(),
+          );
+        }
+        if (gr['guildXp'] != null) {
+          await box.put(_kGuildRaidXp, (gr['guildXp'] as num).toInt());
+        }
+      }
+      if (m['livingHeaderFocus'] is Map) {
+        final lf = Map<String, dynamic>.from(m['livingHeaderFocus'] as Map);
+        if (lf['localDay'] != null) {
+          await box.put(_kLivingHeaderFocusDay, lf['localDay'].toString());
+        }
+        if (lf['minutesToday'] != null) {
+          await box.put(
+            _kLivingHeaderFocusMinutesToday,
+            (lf['minutesToday'] as num).toInt(),
+          );
+        }
+      }
       if (m['mageRuneLastUsed'] is Map) {
         await box.put(_kMageRuneLastUsed, m['mageRuneLastUsed']);
       }
@@ -1912,6 +2427,25 @@ class DatabaseService {
       }
       if (m['recordsBySystem'] is String) {
         await box.put(_kRecordsBySystem, m['recordsBySystem']);
+      }
+
+      if (m.containsKey('worldJournalSnackShown') &&
+          m['worldJournalSnackShown'] is Map) {
+        final toRemove = box.keys
+            .whereType<String>()
+            .where((k) => k.startsWith(_kWorldJournalSnackPrefix))
+            .toList();
+        for (final k in toRemove) {
+          await box.delete(k);
+        }
+        final wj = Map<String, dynamic>.from(m['worldJournalSnackShown'] as Map);
+        for (final e in wj.entries) {
+          final key = e.key.toString();
+          if (!key.startsWith(_kWorldJournalSnackPrefix)) continue;
+          if (e.value == true) {
+            await box.put(key, true);
+          }
+        }
       }
 
       // New multi-custom catalog (custom_<slug>).
@@ -1997,6 +2531,7 @@ class DatabaseService {
 }
 
 enum OnboardingStep {
+  needAbyssPortal('need_abyss_portal'),
   needLore('need_lore'),
   needPhilosophySelection('need_philosophy_selection'),
   needMasterEncounter('need_master_encounter'),
@@ -2014,7 +2549,7 @@ enum OnboardingStep {
     for (final s in OnboardingStep.values) {
       if (s.value == v) return s;
     }
-    return OnboardingStep.needLore;
+    return OnboardingStep.needAbyssPortal;
   }
 }
 

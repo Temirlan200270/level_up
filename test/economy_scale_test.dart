@@ -1,4 +1,4 @@
-import 'package:expense_tracker_flutter/src/core/economy_scale.dart';
+import 'package:level_up/src/core/economy_scale.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/hunter_model.dart';
 import '../../../core/item_rarity_style.dart';
+import '../../../core/system_visuals_extension.dart';
 import 'item_detail_popup.dart';
 
 class ItemSlotCard extends StatelessWidget {
@@ -25,7 +26,7 @@ class ItemSlotCard extends StatelessWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(context.worldCardRadius),
           border: Border.all(color: rc, width: 2),
           boxShadow: ItemRarityStyle.glow(
             slot.item.rarity,

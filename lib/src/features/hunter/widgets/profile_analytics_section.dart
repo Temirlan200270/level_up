@@ -2,12 +2,14 @@ import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/daily_quest_heatmap.dart';
 import '../../../core/promo_ui.dart';
-import '../../../core/theme.dart';
+import '../../../core/system_visuals_extension.dart';
+import '../../../core/widgets/world_material_chrome.dart';
 import '../../../core/translations.dart';
 import '../../../models/hunter_model.dart';
 import '../../../services/database_service.dart';
@@ -26,6 +28,22 @@ class ProfileAnalyticsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = useTranslations(ref);
     ref.watch(questsProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final visuals = Theme.of(context).extension<SystemVisuals>() ??
+        const SystemVisuals(
+          backgroundKind: SystemBackgroundKind.grid,
+          backgroundAssetPath: '',
+          particlesKind: SystemParticlesKind.none,
+          panelRadius: 12,
+          panelBorderWidth: 1,
+          panelBlur: 0,
+          titleLetterSpacing: 2.2,
+          surfaceKind: SystemSurfaceKind.digital,
+          glowIntensity: 0.35,
+          borderRadiusScale: 1.0,
+          shadowProfile: SystemShadowProfile.soft,
+        );
+    final glow = visuals.glowIntensity.clamp(0.0, 1.0);
     final counts = aggregateCompletedDailyQuestsByDay(
       DatabaseService.getAllQuests(),
     );
@@ -34,7 +52,8 @@ class ProfileAnalyticsSection extends ConsumerWidget {
     final labelStyle = GoogleFonts.manrope(
       fontSize: 10,
       fontWeight: FontWeight.w600,
-      color: SoloLevelingColors.textSecondary,
+      color: scheme.onSurfaceVariant,
+      letterSpacing: (visuals.titleLetterSpacing * 0.18).clamp(0.2, 0.9),
     );
 
     final d = hunter.displayStats;
@@ -65,60 +84,70 @@ class ProfileAnalyticsSection extends ConsumerWidget {
         profileSectionTitle(context, t('profile_analytics_radar')),
         const SizedBox(height: 10),
         ProfileNeonCard(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-          child: SizedBox(
-            height: 260,
-            child: RadarChart(
-              RadarChartData(
-                radarShape: RadarShape.polygon,
-                radarBackgroundColor: SoloLevelingColors.surfaceLight
-                    .withValues(alpha: 0.25),
-                radarBorderData: BorderSide(
-                  color: SoloLevelingColors.neonBlue.withValues(alpha: 0.35),
-                ),
-                gridBorderData: BorderSide(
-                  color: SoloLevelingColors.textTertiary.withValues(alpha: 0.35),
-                ),
-                tickBorderData: BorderSide(
-                  color: SoloLevelingColors.neonPurple.withValues(alpha: 0.25),
-                ),
-                tickCount: 4,
-                ticksTextStyle: labelStyle.copyWith(fontSize: 9),
-                titleTextStyle: labelStyle,
-                titlePositionPercentageOffset: 0.12,
-                getTitle: (index, _) {
-                  if (index >= 0 && index < labels.length) {
-                    return RadarChartTitle(text: labels[index]);
-                  }
-                  return const RadarChartTitle(text: '');
-                },
-                dataSets: [
-                  RadarDataSet(
-                    fillColor: SoloLevelingColors.neonBlue.withValues(
-                      alpha: 0.22,
-                    ),
-                    borderColor: SoloLevelingColors.neonBlue,
-                    borderWidth: 2,
-                    entryRadius: 3,
-                    dataEntries: vals
-                        .map((v) => RadarEntry(value: v))
-                        .toList(),
+          padding: EdgeInsets.zero,
+          child: WorldMaterialChrome(
+            visuals: visuals,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+            child: SizedBox(
+              height: 260,
+              child: RadarChart(
+                RadarChartData(
+                  radarShape: RadarShape.polygon,
+                  radarBackgroundColor:
+                      scheme.surfaceContainerHighest.withValues(alpha: 0.38),
+                  radarBorderData: BorderSide(
+                    color: scheme.primary.withValues(alpha: 0.32 + 0.12 * glow),
                   ),
-                ],
+                  gridBorderData: BorderSide(
+                    color: scheme.outline.withValues(alpha: 0.38),
+                  ),
+                  tickBorderData: BorderSide(
+                    color: scheme.secondary.withValues(alpha: 0.28 + 0.1 * glow),
+                  ),
+                  tickCount: 4,
+                  ticksTextStyle: labelStyle.copyWith(fontSize: 9),
+                  titleTextStyle: labelStyle,
+                  titlePositionPercentageOffset: 0.12,
+                  getTitle: (index, _) {
+                    if (index >= 0 && index < labels.length) {
+                      return RadarChartTitle(text: labels[index]);
+                    }
+                    return const RadarChartTitle(text: '');
+                  },
+                  dataSets: [
+                    RadarDataSet(
+                      fillColor: scheme.primary.withValues(
+                        alpha: 0.16 + 0.12 * glow,
+                      ),
+                      borderColor: scheme.primary,
+                      borderWidth: 2,
+                      entryRadius: 3,
+                      dataEntries: vals
+                          .map((v) => RadarEntry(value: v))
+                          .toList(),
+                    ),
+                  ],
+                ),
+                duration: const Duration(milliseconds: 450),
+                curve: Curves.easeOutCubic,
               ),
-              duration: const Duration(milliseconds: 450),
-              curve: Curves.easeOutCubic,
             ),
           ),
-        ),
+        )
+            .animate()
+            .fadeIn(duration: 400.ms, curve: Curves.easeOutCubic)
+            .slideY(begin: 0.06, curve: Curves.easeOutCubic),
         const SizedBox(height: 24),
         profileSectionTitle(context, t('profile_analytics_heatmap')),
         const SizedBox(height: 10),
         ProfileNeonCard(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          padding: EdgeInsets.zero,
+          child: WorldMaterialChrome(
+            visuals: visuals,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               SizedBox(
                 height: 7 * 10.0 + 6 * 2 + 2,
                 child: SingleChildScrollView(
@@ -134,6 +163,8 @@ class ProfileAnalyticsSection extends ConsumerWidget {
                           children: List.generate(7, (row) {
                             final v = week[row];
                             return _HeatCell(
+                              scheme: scheme,
+                              glow: glow,
                               count: v,
                               rowHeight: 10,
                               rowGap: 2,
@@ -152,52 +183,57 @@ class ProfileAnalyticsSection extends ConsumerWidget {
                     t('heatmap_legend_low'),
                     style: GoogleFonts.manrope(
                       fontSize: 11,
-                      color: SoloLevelingColors.textTertiary,
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _legendSample(0),
-                  _legendSample(1),
-                  _legendSample(2),
+                  ..._legendSamples(scheme, glow),
                   const SizedBox(width: 8),
                   Text(
                     t('heatmap_legend_high'),
                     style: GoogleFonts.manrope(
                       fontSize: 11,
-                      color: SoloLevelingColors.textTertiary,
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
             ],
+            ),
           ),
-        ),
+        )
+            .animate()
+            .fadeIn(
+              duration: 440.ms,
+              delay: 90.ms,
+              curve: Curves.easeOutCubic,
+            )
+            .slideY(begin: 0.06, curve: Curves.easeOutCubic),
       ],
     );
   }
 
-  static Widget _legendSample(int level) {
-    Color c;
-    switch (level) {
-      case 0:
-        c = SoloLevelingColors.surfaceLight.withValues(alpha: 0.45);
-        break;
-      case 1:
-        c = SoloLevelingColors.neonGreen.withValues(alpha: 0.45);
-        break;
-      default:
-        c = SoloLevelingColors.neonGreen.withValues(alpha: 0.9);
-    }
+  static List<Widget> _legendSamples(ColorScheme scheme, double glow) {
+    final empty = scheme.surfaceContainerHighest.withValues(alpha: 0.5);
+    final low = scheme.primary.withValues(alpha: 0.38 + 0.08 * glow);
+    final high = scheme.primary.withValues(alpha: 0.82 + 0.1 * glow);
+    final border = scheme.outline.withValues(alpha: 0.22);
+    return [
+      _legendBox(empty, border),
+      _legendBox(low, border),
+      _legendBox(high, border),
+    ];
+  }
+
+  static Widget _legendBox(Color fill, Color border) {
     return Container(
       width: 12,
       height: 12,
       margin: const EdgeInsets.only(right: 4),
       decoration: BoxDecoration(
-        color: c,
+        color: fill,
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(
-          color: SoloLevelingColors.neonBlue.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: border),
       ),
     );
   }
@@ -205,11 +241,15 @@ class ProfileAnalyticsSection extends ConsumerWidget {
 
 class _HeatCell extends StatelessWidget {
   const _HeatCell({
+    required this.scheme,
+    required this.glow,
     required this.count,
     required this.rowHeight,
     required this.rowGap,
   });
 
+  final ColorScheme scheme;
+  final double glow;
   final int count;
   final double rowHeight;
   final double rowGap;
@@ -220,11 +260,11 @@ class _HeatCell extends StatelessWidget {
     if (count < 0) {
       fill = Colors.transparent;
     } else if (count == 0) {
-      fill = SoloLevelingColors.surfaceLight.withValues(alpha: 0.4);
+      fill = scheme.surfaceContainerHighest.withValues(alpha: 0.48);
     } else if (count == 1) {
-      fill = SoloLevelingColors.neonGreen.withValues(alpha: 0.42);
+      fill = scheme.primary.withValues(alpha: 0.38 + 0.08 * glow);
     } else {
-      fill = SoloLevelingColors.neonGreen.withValues(alpha: 0.9);
+      fill = scheme.primary.withValues(alpha: 0.82 + 0.1 * glow);
     }
 
     return Padding(
@@ -237,7 +277,7 @@ class _HeatCell extends StatelessWidget {
           borderRadius: BorderRadius.circular(2),
           border: count >= 0
               ? Border.all(
-                  color: SoloLevelingColors.neonBlue.withValues(alpha: 0.12),
+                  color: scheme.outline.withValues(alpha: 0.14),
                 )
               : null,
         ),

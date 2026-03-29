@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:expense_tracker_flutter/src/core/loot_drop_logic.dart';
+import 'package:level_up/src/core/loot_drop_logic.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

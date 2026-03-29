@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/hunter_model.dart';
 import '../models/item_model.dart';
@@ -15,7 +16,9 @@ import '../core/economy_scale.dart';
 import '../core/game_feedback.dart';
 import '../core/loot_drop_logic.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/dungeon_model.dart';
 import 'cloud_sync/cloud_sync_adapter.dart';
 import 'cloud_sync/supabase_cloud_sync_adapter.dart';
 import 'database_service.dart';
@@ -24,7 +27,9 @@ import 'quest_notification_service.dart';
 import 'translation_service.dart';
 import 'supabase/supabase_config.dart';
 import 'home_widget_service.dart';
+import 'world_journal_milestone_notifications.dart';
 import '../core/feedback_overlay.dart';
+import '../core/master_quest_voice_mapper.dart';
 import '../core/systems/system_config.dart';
 import '../core/systems/system_id.dart';
 import '../core/systems/custom_rules_preset.dart';
@@ -34,8 +39,37 @@ import 'social_service.dart';
 import '../models/public_profile_model.dart';
 import '../models/leaderboard_entry_model.dart';
 
+/// Тактильный отклик при завершении квеста (Фаза 8.5).
+void _hapticFeedbackForQuestComplete(QuestType type, bool mandatory) {
+  switch (type) {
+    case QuestType.story:
+    case QuestType.urgent:
+      HapticFeedback.heavyImpact();
+      HapticFeedback.lightImpact();
+      HapticFeedback.lightImpact();
+      return;
+    case QuestType.daily:
+    case QuestType.weekly:
+      if (mandatory) {
+        HapticFeedback.mediumImpact();
+      } else {
+        HapticFeedback.selectionClick();
+      }
+      return;
+    case QuestType.penalty:
+      HapticFeedback.mediumImpact();
+      return;
+    case QuestType.special:
+      HapticFeedback.selectionClick();
+      return;
+  }
+}
+
 /// Индекс вкладки в `HomeShell` (нужен для возврата из онбординга).
 final homeTabIndexProvider = StateProvider<int>((ref) => 0);
+
+/// Тик после завершения/провала квеста — триггер проверки калибровки сложности.
+final adaptiveCalibrationTickProvider = StateProvider<int>((ref) => 0);
 
 // === РЕЗУЛЬТАТ ДРОПА ===
 /// Результат дропа для отображения в UI
@@ -130,6 +164,37 @@ Future<void> _evaluateQuestAchievements(
   }
 }
 
+// === SETTINGS & PREFS ===
+
+final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
+  throw UnimplementedError(
+    'sharedPreferencesProvider must be overridden in ProviderScope',
+  );
+});
+
+// === DUNGEONS ===
+
+final dungeonsProvider = StateNotifierProvider<DungeonsNotifier, List<Dungeon>>(
+  (ref) {
+    return DungeonsNotifier();
+  },
+);
+
+class DungeonsNotifier extends StateNotifier<List<Dungeon>> {
+  DungeonsNotifier() : super([]) {
+    refresh();
+  }
+
+  void refresh() {
+    state = DatabaseService.getDungeons();
+  }
+
+  Future<void> createDungeon(Dungeon dungeon) async {
+    await DatabaseService.createDungeon(dungeon);
+    refresh();
+  }
+}
+
 // === ПРОВАЙДЕРЫ ОХОТНИКА (HUNTER) ===
 
 // Провайдер охотника
@@ -149,8 +214,10 @@ final myPublicProfileProvider = FutureProvider<PublicProfile>((ref) async {
   return service.getMyPublicProfile(hunter: hunter);
 });
 
-final profileByHandleProvider =
-    FutureProvider.family<PublicProfile?, String>((ref, handle) async {
+final profileByHandleProvider = FutureProvider.family<PublicProfile?, String>((
+  ref,
+  handle,
+) async {
   final hunter = ref.watch(hunterProvider);
   final service = ref.watch(socialServiceProvider);
   return service.getProfileByHandle(handle, hunter: hunter);
@@ -158,17 +225,20 @@ final profileByHandleProvider =
 
 final searchProfilesProvider =
     FutureProvider.family<List<PublicProfile>, String>((ref, query) async {
-  final hunter = ref.watch(hunterProvider);
-  final service = ref.watch(socialServiceProvider);
-  return service.searchProfiles(query, hunter: hunter);
-});
+      final hunter = ref.watch(hunterProvider);
+      final service = ref.watch(socialServiceProvider);
+      return service.searchProfiles(query, hunter: hunter);
+    });
 
-final leaderboardProvider = FutureProvider.family<List<LeaderboardEntry>,
-    SocialLeaderboardKind>((ref, kind) async {
-  final hunter = ref.watch(hunterProvider);
-  final service = ref.watch(socialServiceProvider);
-  return service.getLeaderboard(kind: kind, hunter: hunter);
-});
+final leaderboardProvider =
+    FutureProvider.family<List<LeaderboardEntry>, SocialLeaderboardKind>((
+      ref,
+      kind,
+    ) async {
+      final hunter = ref.watch(hunterProvider);
+      final service = ref.watch(socialServiceProvider);
+      return service.getLeaderboard(kind: kind, hunter: hunter);
+    });
 
 class HunterNotifier extends StateNotifier<Hunter?> {
   HunterNotifier(this._ref) : super(null) {
@@ -190,7 +260,7 @@ class HunterNotifier extends StateNotifier<Hunter?> {
     final hunter = await DatabaseService.createDefaultHunter(name);
     await DatabaseService.ensureAwakeningTutorialIfNeeded();
     await DatabaseService.setSystemSelectionShown(false);
-    await DatabaseService.setOnboardingStep(OnboardingStep.needLore);
+    await DatabaseService.setOnboardingStep(OnboardingStep.needAbyssPortal);
     state = hunter;
   }
 
@@ -310,6 +380,15 @@ class HunterNotifier extends StateNotifier<Hunter?> {
   Future<void> applyQuestFailurePenalties() async {
     if (state == null) return;
     final h = state!;
+
+    // Если активен Режим Восстановления (adaptive_soft) - штрафов нет
+    final hasSoftMode = h.activeBuffs.any(
+      (b) => b.effectId == 'adaptive_soft' && !b.isExpired,
+    );
+    if (hasSoftMode) return;
+
+    if (h.isSanctuaryActive) return;
+
     final rules = _ref.read(activeSystemRulesProvider);
     // Квест-контекст для правил (минимум: тип daily/weekly/mandatory).
     final quest = Quest(
@@ -350,6 +429,7 @@ class HunterNotifier extends StateNotifier<Hunter?> {
   /// Дебафф «Штрафная зона» после провала обязательного квеста.
   Future<void> applyPenaltyZoneDebuff() async {
     if (state == null) return;
+    if (state!.isSanctuaryActive) return;
     final without = state!.activeBuffs
         .where((b) => b.effectId != 'penalty_zone')
         .toList();
@@ -373,6 +453,20 @@ class HunterNotifier extends StateNotifier<Hunter?> {
 
   void refresh() {
     _loadHunter();
+  }
+
+  Future<void> equipTitle(String titleId) async {
+    if (state == null) return;
+    final updated = state!.copyWith(equippedTitleId: titleId);
+    await updateHunter(updated);
+  }
+
+  Future<void> unlockTitle(String titleId) async {
+    if (state == null) return;
+    final updated = state!.copyWith(
+      unlockedTitleIds: {...state!.unlockedTitleIds, titleId}.toList(),
+    );
+    await updateHunter(updated);
   }
 
   Future<void> buyItem(Item item) async {
@@ -514,6 +608,18 @@ class HunterNotifier extends StateNotifier<Hunter?> {
       );
 
       updated = updated.copyWith(activeBuffs: [...updated.activeBuffs, buff]);
+    }
+
+    if (effects.containsKey('sanctuary_hours')) {
+      final hours = (effects['sanctuary_hours'] as num?)?.toInt() ?? 48;
+      final now = DateTime.now();
+      final anchor = (updated.sanctuaryUntil != null &&
+              updated.sanctuaryUntil!.isAfter(now))
+          ? updated.sanctuaryUntil!
+          : now;
+      updated = updated.copyWith(
+        sanctuaryUntil: anchor.add(Duration(hours: hours)),
+      );
     }
 
     await updateHunter(updated);
@@ -720,13 +826,12 @@ class HunterNotifier extends StateNotifier<Hunter?> {
   // === СИСТЕМА ДРОПА (RNG) ===
 
   /// Генерирует дроп при завершении квеста и возвращает результат
-  LootDropResult? generateLootDrop() {
+  LootDropResult? generateLootDrop({int extraBonus = 0}) {
     if (state == null) return null;
 
     final random = Random();
-    final tier = lootTierForRoll(
-      rollLootWithBonus(random, DatabaseService.getWorldEventLootRollBonus()),
-    );
+    final bonus = DatabaseService.getWorldEventLootRollBonus() + extraBonus;
+    final tier = lootTierForRoll(rollLootWithBonus(random, bonus));
 
     switch (tier) {
       case LootDropTier.goldBand:
@@ -753,7 +858,10 @@ class HunterNotifier extends StateNotifier<Hunter?> {
         return null;
 
       case LootDropTier.consumableBand:
-        final consumable = pickRandomItem(filterConsumables(allGameItems), random);
+        final consumable = pickRandomItem(
+          filterConsumables(allGameItems),
+          random,
+        );
         if (consumable != null) {
           addItem(consumable, 1);
           if (kDebugMode) {
@@ -790,6 +898,25 @@ class HunterNotifier extends StateNotifier<Hunter?> {
 
 /// Флаг защищённой мутации квестов (complete/fail), чтобы UI мог блокировать повторы.
 final questMutationBusyProvider = StateProvider<bool>((ref) => false);
+
+/// ID квестов с активным фоновым уточнением наград через ИИ (Project Overlord).
+final questsAwaitingAiRefinementIdsProvider =
+    StateProvider<Set<String>>((ref) => <String>{});
+
+/// Ключ l10n фразы Мастера на время ожидания ИИ (`ai_master_loading_*`).
+final questAiLoadingPhraseKeyProvider =
+    StateProvider<Map<String, String>>((ref) => <String, String>{});
+
+/// Реакция Мастера на черновик команды ([MasterThoughts], observer effect).
+final masterCommandTypingThoughtKeyProvider =
+    StateProvider<String?>((ref) => null);
+
+/// Краткая подсветка карточки после успешного ИИ-уточнения (золотое свечение).
+final questCardGoldFlashIdsProvider =
+    StateProvider<Set<String>>((ref) => <String>{});
+
+/// Счётчик для перерисовки живой шапки квестов (фокус за сегодня и т.п.).
+final livingHeaderPulseProvider = StateProvider<int>((ref) => 0);
 
 // Провайдер всех квестов
 final questsProvider = StateNotifierProvider<QuestsNotifier, List<Quest>>((
@@ -836,7 +963,9 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
 
   /// Тестовый хук для проверки rollback в псевдо-транзакции.
   @visibleForTesting
-  Future<void> runAtomicMutationForTest(Future<void> Function() mutation) async {
+  Future<void> runAtomicMutationForTest(
+    Future<void> Function() mutation,
+  ) async {
     await _runQuestMutationAtomic(() async {
       await mutation();
       return null;
@@ -845,7 +974,13 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
 
   void _loadQuests() {
     state = DatabaseService.getAllQuests();
-    unawaited(QuestNotificationService.rescheduleForActiveQuests(state));
+    unawaited(
+      QuestNotificationService.rescheduleForActiveQuests(
+        state,
+        systemId: _ref.read(activeSystemIdProvider),
+        systemRules: _ref.read(activeSystemRulesProvider),
+      ),
+    );
     unawaited(
       HomeWidgetService.update(
         hunter: _ref.read(hunterProvider),
@@ -861,7 +996,11 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
   Future<void> _afterLoadSpawnStoryMilestones(int hunterLevel) async {
     await DatabaseService.trySpawnStoryMilestones(hunterLevel);
     state = DatabaseService.getAllQuests();
-    await QuestNotificationService.rescheduleForActiveQuests(state);
+    await QuestNotificationService.rescheduleForActiveQuests(
+      state,
+      systemId: _ref.read(activeSystemIdProvider),
+      systemRules: _ref.read(activeSystemRulesProvider),
+    );
   }
 
   /// Перечитать квесты из Hive (после импорта / облачного восстановления).
@@ -894,6 +1033,7 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
 
       final completed = quest.complete();
       await updateQuest(completed);
+      _hapticFeedbackForQuestComplete(completed.type, completed.mandatory);
       await DatabaseService.resetMoraleHardFailStreak();
 
       if (completed.type == QuestType.penalty) {
@@ -948,11 +1088,26 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
           completed.goldReward,
           hunterNow.level,
         );
-        final mappedGold = rules.mapQuestCurrencyReward(
+        var mappedGold = rules.mapQuestCurrencyReward(
           hunter: hunterNow,
           quest: completed,
           baseGold: baseGold,
         );
+
+        // Adaptive Difficulty: Gold Bonus
+        final hasHardMode = hunterNow.activeBuffs.any(
+          (b) => b.effectId == 'adaptive_hard' && !b.isExpired,
+        );
+        if (hasHardMode) mappedGold = (mappedGold * 1.5).round();
+
+        final hasSoftMode = hunterNow.activeBuffs.any(
+          (b) => b.effectId == 'adaptive_soft' && !b.isExpired,
+        );
+        if (hasSoftMode) mappedGold = (mappedGold * 1.3).round();
+
+        final guildGoldMult = DatabaseService.getGuildGoldBonusMultiplier();
+        mappedGold = (mappedGold * guildGoldMult).round();
+
         await ref.read(hunterProvider.notifier).addGold(mappedGold);
       }
 
@@ -961,14 +1116,20 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
       }
 
       await DatabaseService.incrementTagCounts(completed.tags);
+      await DatabaseService.recordWorldGateContributionFromQuest(completed);
       if (systemId == SystemId.mage) {
         // Mage: “комбинация рун” — квест с 2+ тегами даёт краткий бафф к опыту.
         final uniqueTags = completed.tags
             .map((t) => t.toLowerCase().trim())
-            .where((t) => t.isNotEmpty && t != 'system' && !t.startsWith('system_id_'))
+            .where(
+              (t) =>
+                  t.isNotEmpty && t != 'system' && !t.startsWith('system_id_'),
+            )
             .toSet();
         if (uniqueTags.length >= 2) {
-          await ref.read(hunterProvider.notifier).addBuff(
+          await ref
+              .read(hunterProvider.notifier)
+              .addBuff(
                 Buff(
                   effectId: 'xp_multiplier',
                   value: 1.10,
@@ -979,28 +1140,69 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
         }
         final runeTags = completed.tags
             .map((t) => t.toLowerCase().trim())
-            .where((t) => t.isNotEmpty && t != 'system' && !t.startsWith('system_id_'))
+            .where(
+              (t) =>
+                  t.isNotEmpty && t != 'system' && !t.startsWith('system_id_'),
+            )
             .toList();
         await DatabaseService.markMageRunesUsed(runeTags);
       }
       await _evaluateQuestAchievements(ref, completed);
 
-      final lootDrop = ref.read(hunterProvider.notifier).generateLootDrop();
+      // Adaptive Difficulty: повышенный шанс дропа в Hard Mode
+      final hunterForLoot = ref.read(hunterProvider);
+      final hasHardModeForLoot =
+          hunterForLoot?.activeBuffs.any(
+            (b) => b.effectId == 'adaptive_hard' && !b.isExpired,
+          ) ??
+          false;
+      int extraLootBonus = hasHardModeForLoot
+          ? 15
+          : 0; // +15% шанс на лучший тир
+
+      final masterLine = pickMasterQuestReactionLine(
+        systemId: systemId,
+        success: true,
+        seed: completed.id,
+      );
+
+      final lootDrop = ref
+          .read(hunterProvider.notifier)
+          .generateLootDrop(extraBonus: extraLootBonus);
       if (lootDrop != null) {
         GameFeedback.onLootDrop();
         if (lootDrop.item != null && lootDrop.item!.rarity.index >= 3) {
-          ref
-              .read(feedbackOverlayProvider.notifier)
-              .show(FeedbackOverlayKind.legendaryLoot);
+          ref.read(feedbackOverlayProvider.notifier).show(
+                FeedbackOverlayKind.legendaryLoot,
+                masterMessage: masterLine,
+              );
+        } else {
+          ref.read(feedbackOverlayProvider.notifier).show(
+                FeedbackOverlayKind.questSuccessMaster,
+                masterMessage: masterLine,
+              );
         }
       } else {
         GameFeedback.onQuestComplete();
+        ref.read(feedbackOverlayProvider.notifier).show(
+              FeedbackOverlayKind.questSuccessMaster,
+              masterMessage: masterLine,
+            );
       }
 
       // Dungeons: после успешного этапа спавним следующий (или закрываем данж).
       await DatabaseService.advanceDungeonOnStageComplete(completed);
 
-      return {'experience': finalExp, 'lootDrop': lootDrop};
+      final worldJournalSnack =
+          await WorldJournalMilestoneNotifications.consumeNextNotificationIfAny();
+
+      _ref.read(adaptiveCalibrationTickProvider.notifier).state++;
+
+      return {
+        'experience': finalExp,
+        'lootDrop': lootDrop,
+        if (worldJournalSnack != null) 'worldJournalSnack': worldJournalSnack,
+      };
     });
   }
 
@@ -1012,11 +1214,26 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
 
       await updateQuest(quest.fail());
       GameFeedback.onQuestFail();
-      if (quest.penalizeOnFailure) {
+
+      final masterFailLine = pickMasterQuestReactionLine(
+        systemId: _ref.read(activeSystemIdProvider),
+        success: false,
+        seed: questId,
+      );
+      ref.read(feedbackOverlayProvider.notifier).show(
+            FeedbackOverlayKind.questFailMaster,
+            masterMessage: masterFailLine,
+          );
+
+      final sanctuary =
+          ref.read(hunterProvider)?.isSanctuaryActive ?? false;
+      if (!sanctuary && quest.penalizeOnFailure) {
         await ref.read(hunterProvider.notifier).applyQuestFailurePenalties();
       }
       // Штрафная зона: обязательный квест (кроме уже штрафного).
-      if (quest.mandatory && quest.type != QuestType.penalty) {
+      if (!sanctuary &&
+          quest.mandatory &&
+          quest.type != QuestType.penalty) {
         await ref.read(hunterProvider.notifier).applyPenaltyZoneDebuff();
         await spawnPenaltyQuestIfNeeded();
       }
@@ -1032,6 +1249,7 @@ class QuestsNotifier extends StateNotifier<List<Quest>> {
 
       // Dungeons: провал этапа = провал подземелья.
       await DatabaseService.failDungeonOnStageFail(quest);
+      _ref.read(adaptiveCalibrationTickProvider.notifier).state++;
       return null;
     });
   }
@@ -1207,8 +1425,8 @@ class LanguageNotifier extends StateNotifier<String> {
 /// Активная “философия” (system_id) — пока влияет на терминологию/тон.
 final activeSystemIdProvider =
     StateNotifierProvider<ActiveSystemIdNotifier, SystemId>((ref) {
-  return ActiveSystemIdNotifier(ref);
-});
+      return ActiveSystemIdNotifier(ref);
+    });
 
 /// Активный slug в ветке `custom_<slug>`.
 /// Если в Hive лежит `custom_default` или просто `custom`, возвращаем `default`.
@@ -1278,25 +1496,22 @@ class ActiveSystemIdNotifier extends StateNotifier<SystemId> {
       SystemId.mage => 'archmage',
       SystemId.cultivator => 'cultivation',
       SystemId.custom => () {
-          final slug = _ref.read(activeCustomSlugProvider);
-          final presetRaw =
-              DatabaseService.getCustomSystemRulesPresetForSlug(slug);
-          return switch (CustomRulesPreset.fromValue(presetRaw)) {
-            CustomRulesPreset.mage => 'archmage',
-            CustomRulesPreset.cultivator => 'cultivation',
-            _ => 'solo',
-          };
-        }(),
+        final slug = _ref.read(activeCustomSlugProvider);
+        final presetRaw = DatabaseService.getCustomSystemRulesPresetForSlug(
+          slug,
+        );
+        return switch (CustomRulesPreset.fromValue(presetRaw)) {
+          CustomRulesPreset.mage => 'archmage',
+          CustomRulesPreset.cultivator => 'cultivation',
+          _ => 'solo',
+        };
+      }(),
     };
     await _ref.read(themeSkinIdProvider.notifier).setSkin(skinId);
 
     // В multi-save режиме создаём профиль для системы при первом входе.
-    if (prevHunter != null &&
-        DatabaseService.getHunter(systemId: id) == null) {
-      await DatabaseService.createDefaultHunter(
-        prevHunter.name,
-        systemId: id,
-      );
+    if (prevHunter != null && DatabaseService.getHunter(systemId: id) == null) {
+      await DatabaseService.createDefaultHunter(prevHunter.name, systemId: id);
       // Для нового профиля в системе сразу семплим onbording-квесты,
       // чтобы не получить “пустую” вселенную в Mage/Cultivator.
       await DatabaseService.ensureAwakeningTutorialIfNeeded();
@@ -1315,8 +1530,7 @@ class ActiveSystemIdNotifier extends StateNotifier<SystemId> {
     state = SystemId.custom;
     await DatabaseService.setActiveSystemId('custom_$slug');
 
-    final presetRaw =
-        DatabaseService.getCustomSystemRulesPresetForSlug(slug);
+    final presetRaw = DatabaseService.getCustomSystemRulesPresetForSlug(slug);
     final skinId = switch (CustomRulesPreset.fromValue(presetRaw)) {
       CustomRulesPreset.mage => 'archmage',
       CustomRulesPreset.cultivator => 'cultivation',
@@ -1324,7 +1538,8 @@ class ActiveSystemIdNotifier extends StateNotifier<SystemId> {
     };
     await _ref.read(themeSkinIdProvider.notifier).setSkin(skinId);
 
-    if (prevHunter != null && DatabaseService.getHunter(systemId: state) == null) {
+    if (prevHunter != null &&
+        DatabaseService.getHunter(systemId: state) == null) {
       await DatabaseService.createDefaultHunter(
         prevHunter.name,
         systemId: state,
@@ -1428,22 +1643,29 @@ class AIApiKeyNotifier extends StateNotifier<String> {
 /// Активная полноэкранная фокус-сессия с дедлайном.
 class FocusSessionState {
   final DateTime endsAt;
+
+  /// Запланированная длительность (сек), для рейда гильдии и отображения.
+  final int plannedDurationSeconds;
   final bool closedMeditation;
   final bool rewardGranted;
 
   const FocusSessionState({
     required this.endsAt,
+    required this.plannedDurationSeconds,
     this.closedMeditation = false,
     this.rewardGranted = false,
   });
 
   FocusSessionState copyWith({
     DateTime? endsAt,
+    int? plannedDurationSeconds,
     bool? closedMeditation,
     bool? rewardGranted,
   }) {
     return FocusSessionState(
       endsAt: endsAt ?? this.endsAt,
+      plannedDurationSeconds:
+          plannedDurationSeconds ?? this.plannedDurationSeconds,
       closedMeditation: closedMeditation ?? this.closedMeditation,
       rewardGranted: rewardGranted ?? this.rewardGranted,
     );

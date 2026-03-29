@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/translations.dart';
 import '../../../core/item_rarity_style.dart';
-import '../../../core/theme.dart';
+import '../../../core/system_visuals_extension.dart';
 
 import '../../../models/item_model.dart';
 import '../../../models/hunter_model.dart';
@@ -41,12 +42,14 @@ class EquipmentPanel extends ConsumerWidget {
     String placeholder,
     String Function(String) t,
   ) {
+    final scheme = Theme.of(context).colorScheme;
+    final r = context.worldCardRadius;
     final borderColor = item != null
         ? ItemRarityStyle.color(
             item.rarity,
             theme: Theme.of(context),
           )
-        : SoloLevelingColors.textTertiary;
+        : scheme.outline.withValues(alpha: 0.42);
     final glow = item != null
         ? ItemRarityStyle.glow(
             item.rarity,
@@ -71,8 +74,8 @@ class EquipmentPanel extends ConsumerWidget {
         width: 80,
         height: 80,
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(12),
+          color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(r),
           border: Border.all(color: borderColor, width: 2),
           boxShadow: glow,
         ),
@@ -82,7 +85,12 @@ class EquipmentPanel extends ConsumerWidget {
               : Text(
                   placeholder,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  style: GoogleFonts.manrope(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
                 ),
         ),
       ),

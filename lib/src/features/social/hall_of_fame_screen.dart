@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/promo_ui.dart';
-import '../../core/theme.dart';
+import '../../core/system_visuals_extension.dart';
 import '../../core/translations.dart';
+import '../../core/widgets/world_surface_panel.dart';
 import '../../services/providers.dart';
 import '../../models/public_profile_model.dart';
 import 'friend_profile_screen.dart';
@@ -37,14 +38,34 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
   @override
   Widget build(BuildContext context) {
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     final results = ref.watch(searchProfilesProvider(_query));
+    final visuals = Theme.of(context).extension<SystemVisuals>() ??
+        const SystemVisuals(
+          backgroundKind: SystemBackgroundKind.grid,
+          backgroundAssetPath: '',
+          particlesKind: SystemParticlesKind.none,
+          panelRadius: 12,
+          panelBorderWidth: 1,
+          panelBlur: 0,
+          titleLetterSpacing: 2.2,
+          surfaceKind: SystemSurfaceKind.digital,
+          glowIntensity: 0.35,
+          borderRadiusScale: 1.0,
+          shadowProfile: SystemShadowProfile.soft,
+        );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: ProfileBackdrop(
         child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+            child: WorldSurfacePanel(
+              visuals: visuals,
+              margin: EdgeInsets.zero,
+              child: CustomScrollView(
+                slivers: [
               SliverAppBar(
                 floating: true,
                 backgroundColor: Colors.transparent,
@@ -58,7 +79,7 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
                   child: ProfileNeonCard(
                     padding: const EdgeInsets.all(14),
                     child: Column(
@@ -67,7 +88,7 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
                         Text(
                           t('hall_of_fame_subtitle'),
                           style: GoogleFonts.manrope(
-                            color: SoloLevelingColors.textSecondary,
+                            color: scheme.onSurfaceVariant,
                             height: 1.35,
                             fontSize: 12,
                           ),
@@ -76,7 +97,7 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
                         TextField(
                           controller: _ctrl,
                           style: GoogleFonts.manrope(
-                            color: SoloLevelingColors.textPrimary,
+                            color: scheme.onSurface,
                             fontWeight: FontWeight.w600,
                           ),
                           decoration: InputDecoration(
@@ -91,7 +112,7 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 20),
                 sliver: results.when(
                   data: (items) {
                     if (items.isEmpty) {
@@ -101,7 +122,7 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
                           child: Text(
                             t('hall_of_fame_empty'),
                             style: GoogleFonts.manrope(
-                              color: SoloLevelingColors.textTertiary,
+                              color: scheme.outline,
                               height: 1.35,
                             ),
                           ),
@@ -114,7 +135,7 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
                         return ProfileNeonCard(
                           padding: EdgeInsets.zero,
                           child: PromoSettingsTile(
-                            icon: Icons.emoji_events_outlined,
+                            icon: p.activeSystemId.icon,
                             title: p.handle,
                             subtitle:
                                 '${t('level')} ${p.level} · ${t('rank')} ${p.rank}',
@@ -132,7 +153,7 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
                       child: Text(
                         '${t('error')}: $e',
                         style: GoogleFonts.manrope(
-                          color: SoloLevelingColors.warning,
+                          color: scheme.error,
                           height: 1.35,
                         ),
                       ),
@@ -144,14 +165,16 @@ class _HallOfFameScreenState extends ConsumerState<HallOfFameScreen> {
                       child: Text(
                         t('loading'),
                         style: GoogleFonts.manrope(
-                          color: SoloLevelingColors.textSecondary,
+                          color: scheme.onSurfaceVariant,
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

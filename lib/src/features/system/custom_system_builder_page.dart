@@ -3,17 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/promo_ui.dart';
+import '../../core/progression_gates.dart';
 import '../../core/theme.dart';
 import '../../core/translations.dart';
 import '../../core/systems/custom_rules_preset.dart';
 import '../../core/systems/generated_system_theme_json.dart';
+import '../../models/quest_model.dart';
 import '../../services/ai_service.dart';
 import '../../services/database_service.dart';
 import '../../services/providers.dart';
 import '../../core/system_visuals_extension.dart';
 
 class CustomSystemBuilderPage extends ConsumerStatefulWidget {
-  const CustomSystemBuilderPage({super.key});
+  const CustomSystemBuilderPage({
+    super.key,
+    this.philosophyPickerIsFirstRun = false,
+  });
+
+  /// Первый выбор философии в онбординге — полный доступ к конструктору без уровня 10.
+  final bool philosophyPickerIsFirstRun;
 
   @override
   ConsumerState<CustomSystemBuilderPage> createState() =>
@@ -126,6 +134,27 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
 
     _preset = CustomRulesPreset.fromValue(
         DatabaseService.getCustomSystemRulesPresetForSlug(_selectedSlug));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (DatabaseService.getHunter() == null) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  /// Полная Лаборатория (ИИ, фон, токены); иначе — только термины и пресет правил.
+  bool _isLaboratoryUnlocked() {
+    final hunter = DatabaseService.getHunter();
+    if (hunter == null) return false;
+    final gate10 = DatabaseService.getAllQuests()
+        .where((q) => q.status == QuestStatus.completed)
+        .any((q) => q.tags.contains('story_gate_10'));
+    return ProgressionGates.canOpenLaboratory(
+      hunterLevel: hunter.level,
+      philosophyPickerIsFirstRun: widget.philosophyPickerIsFirstRun,
+      completedStoryGate10: gate10,
+    );
   }
 
   @override
@@ -248,6 +277,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
   bool _isTooBright(Color c) => c.computeLuminance() > 0.60;
 
   Future<void> _generateAiWorld() async {
+    if (!_isLaboratoryUnlocked()) return;
     final t = useTranslations(ref);
     final idea = _ideaCtrl.text.trim();
     if (idea.isEmpty) {
@@ -330,6 +360,8 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
   @override
   Widget build(BuildContext context) {
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
+    final lab = _isLaboratoryUnlocked();
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -374,6 +406,49 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                   textAlign: TextAlign.center,
                 ),
               ),
+              if (!lab)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: scheme.secondaryContainer.withValues(alpha: 0.42),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: scheme.outline.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.science_outlined,
+                            size: 22,
+                            color: scheme.onSecondaryContainer,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              t(
+                                'laboratory_restricted_banner',
+                                params: {
+                                  'level':
+                                      '${ProgressionGates.laboratoryMinLevel}',
+                                },
+                              ),
+                              style: GoogleFonts.manrope(
+                                fontSize: 12,
+                                height: 1.4,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -449,10 +524,13 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                                 label: 'ID мира (slug)',
                                 controller: _slugCtrl,
                                 validator: _slugValidator,
+                                readOnly: !lab,
                               ),
                               const SizedBox(height: 12),
                               FilledButton(
-                                onPressed: () async {
+                                onPressed: !lab
+                                    ? null
+                                    : () async {
                                   final next = _slugNormalize(_slugCtrl.text);
                                   await DatabaseService.setCustomSystemSlugExists(next);
                                   _customSlugs =
@@ -518,6 +596,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                             ],
                           ),
                         ),
+                        if (lab) ...[
                         const SizedBox(height: 14),
                         ProfileNeonCard(
                           padding: const EdgeInsets.all(18),
@@ -626,6 +705,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                             ],
                           ),
                         ),
+                        const SizedBox(height: 14),
                         ProfileNeonCard(
                           padding: const EdgeInsets.all(18),
                           child: Column(
@@ -757,6 +837,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                             ],
                           ),
                         ),
+                        ],
                         const SizedBox(height: 14),
                         ProfileNeonCard(
                           padding: const EdgeInsets.all(18),
@@ -850,6 +931,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                             ],
                           ),
                         ),
+                        if (lab) ...[
                         const SizedBox(height: 14),
                         ProfileNeonCard(
                           padding: const EdgeInsets.all(18),
@@ -894,6 +976,7 @@ class _CustomSystemBuilderPageState extends ConsumerState<CustomSystemBuilderPag
                             ],
                           ),
                         ),
+                        ],
                         const SizedBox(height: 16),
                         Row(
                           children: [
@@ -931,12 +1014,14 @@ class _Field extends StatelessWidget {
     required this.controller,
     required this.validator,
     this.maxLines = 1,
+    this.readOnly = false,
   });
 
   final String label;
   final TextEditingController controller;
   final String? Function(String?) validator;
   final int maxLines;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -944,6 +1029,7 @@ class _Field extends StatelessWidget {
       controller: controller,
       validator: validator,
       maxLines: maxLines,
+      readOnly: readOnly,
       style: GoogleFonts.manrope(color: SoloLevelingColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,

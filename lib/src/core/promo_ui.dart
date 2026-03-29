@@ -8,6 +8,79 @@ import 'dart:io' show File;
 import 'theme.dart';
 import 'system_visuals_extension.dart';
 
+class LockedFeatureScreen extends StatelessWidget {
+  const LockedFeatureScreen({super.key, required this.title, required this.requiredLevel});
+
+  final String title;
+  final int requiredLevel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: ProfileBackdrop(
+        child: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                floating: true,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                title: Text(
+                  title,
+                  style: promoAppBarTitleStyle(context),
+                ),
+                centerTitle: true,
+              ),
+              SliverFillRemaining(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Center(
+                    child: ProfileNeonCard(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Icon(
+                            Icons.lock_outline_rounded,
+                            size: 64,
+                            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Раздел заблокирован',
+                            style: GoogleFonts.manrope(
+                              color: SoloLevelingColors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Ваш сосуд недостаточно окреп.\n\nТребуется Уровень $requiredLevel.',
+                            style: GoogleFonts.manrope(
+                              color: SoloLevelingColors.textSecondary,
+                              height: 1.4,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Фон: сетка + мягкое свечение (профиль, настройки и др.).
 class ProfileBackdrop extends StatefulWidget {
   const ProfileBackdrop({super.key, required this.child});
@@ -31,7 +104,13 @@ class _ProfileBackdropState extends State<ProfileBackdrop> {
           particlesKind: SystemParticlesKind.none,
           panelRadius: 12,
           panelBorderWidth: 1,
+          panelBlur: 0,
           titleLetterSpacing: 2.2,
+          surfaceKind: SystemSurfaceKind.digital,
+          glowIntensity: 0.35,
+          borderRadiusScale: 1.0,
+          shadowProfile: SystemShadowProfile.soft,
+          lowFxMode: false,
         );
 
     final backgroundKey =
@@ -79,23 +158,38 @@ class _ProfileBackdropState extends State<ProfileBackdrop> {
                   ),
                   if (visuals.backgroundAssetPath.trim().isNotEmpty)
                     Transform.translate(
-                      offset: Offset(0, -_parallax * 22),
+                      offset: Offset(
+                        0,
+                        visuals.lowFxMode ? 0 : -_parallax * 22,
+                      ),
                       child: IgnorePointer(
                         child: Opacity(
                           opacity: 0.42,
-                          child: ImageFiltered(
-                            imageFilter:
-                                ImageFilter.blur(sigmaX: 2.4, sigmaY: 2.4),
-                            child: ColorFiltered(
-                              colorFilter: ColorFilter.mode(
-                                scheme.primary.withValues(alpha: 0.92),
-                                BlendMode.srcIn,
-                              ),
-                              child: _BackgroundArt(
-                                pathOrUrl: visuals.backgroundAssetPath,
-                              ),
-                            ),
-                          ),
+                          child: visuals.lowFxMode
+                              ? ColorFiltered(
+                                  colorFilter: ColorFilter.mode(
+                                    scheme.primary.withValues(alpha: 0.92),
+                                    BlendMode.srcIn,
+                                  ),
+                                  child: _BackgroundArt(
+                                    pathOrUrl: visuals.backgroundAssetPath,
+                                  ),
+                                )
+                              : ImageFiltered(
+                                  imageFilter: ImageFilter.blur(
+                                    sigmaX: 2.4,
+                                    sigmaY: 2.4,
+                                  ),
+                                  child: ColorFiltered(
+                                    colorFilter: ColorFilter.mode(
+                                      scheme.primary.withValues(alpha: 0.92),
+                                      BlendMode.srcIn,
+                                    ),
+                                    child: _BackgroundArt(
+                                      pathOrUrl: visuals.backgroundAssetPath,
+                                    ),
+                                  ),
+                                ),
                         ),
                       ),
                     ),

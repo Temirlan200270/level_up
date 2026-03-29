@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:collection/collection.dart'; // Нужен пакет: flutter pub add collection
+import '../../core/system_visuals_extension.dart';
 import '../../core/translations.dart';
+import '../../core/widgets/world_surface_panel.dart';
 
 // Убедись, что пути к файлам правильные:
 import '../../data/skills_data.dart';
@@ -21,6 +23,7 @@ class SkillsScreen extends ConsumerWidget {
     final learnedSkills = hunter?.skills ?? [];
     final skillPoints = hunter?.skillPoints ?? 0;
     final hunterLevel = hunter?.level ?? 1;
+    final visuals = context.systemVisuals;
 
     // Группируем навыки по веткам (assassin, mage, tank)
     // Используем initialSkills из skills_data.dart
@@ -30,6 +33,7 @@ class SkillsScreen extends ConsumerWidget {
     );
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(t('skill_tree')),
         centerTitle: true,
@@ -62,9 +66,12 @@ class SkillsScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         top: false,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: skillsByBranch.entries.map((entry) {
+        child: WorldSurfacePanel(
+          visuals: visuals,
+          margin: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+          child: ListView(
+            padding: const EdgeInsets.all(16.0),
+            children: skillsByBranch.entries.map((entry) {
             final branchName = entry.key;
             final branchSkills = entry.value;
 
@@ -121,9 +128,9 @@ class SkillsScreen extends ConsumerWidget {
                       (s) => s.id == skill.parentId,
                     );
                   }
+                  final minHunterLevel = 1 + (skill.tier - 1) * 5;
                   final isAvailable =
-                      hunterLevel >= 1 &&
-                      isParentLearned; // Упростили проверку уровня
+                      hunterLevel >= minHunterLevel && isParentLearned;
 
                   return SkillCard(
                     skill: skill,
@@ -157,6 +164,7 @@ class SkillsScreen extends ConsumerWidget {
               ),
             );
           }).toList(),
+          ),
         ),
       ),
     );

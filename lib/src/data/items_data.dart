@@ -39,6 +39,18 @@ final List<Item> allGameItems = [
     slot: null,
     effects: {'xp_multiplier_2x': 2.0, 'duration': 3600},
   ),
+  Item(
+    id: 'scroll_sanctuary',
+    name: 'Святилище',
+    description:
+        'Режим покоя: пока действует эффект, Система не снимает золото, опыт и не накладывает штрафную зону за просрочки и провалы.',
+    type: ItemType.consumable,
+    rarity: ItemRarity.epic,
+    buyPrice: 1800,
+    iconPath: 'assets/icons/icon_potion.png',
+    slot: null,
+    effects: {'sanctuary_hours': 72},
+  ),
 
   // === ЭКИПИРОВКА ===
   Item(

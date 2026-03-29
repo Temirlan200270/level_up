@@ -1,6 +1,6 @@
-import 'package:expense_tracker_flutter/src/models/quest_model.dart';
-import 'package:expense_tracker_flutter/src/services/database_service.dart';
-import 'package:expense_tracker_flutter/src/services/providers.dart';
+import 'package:level_up/src/models/quest_model.dart';
+import 'package:level_up/src/services/database_service.dart';
+import 'package:level_up/src/services/providers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

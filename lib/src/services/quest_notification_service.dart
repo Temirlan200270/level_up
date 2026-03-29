@@ -6,6 +6,9 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../core/systems/system_dictionary.dart';
+import '../core/systems/system_id.dart';
+import '../core/systems/system_rules.dart';
 import '../models/quest_model.dart';
 import 'translation_service.dart';
 
@@ -50,7 +53,11 @@ abstract final class QuestNotificationService {
   }
 
   /// Пересоздать отложенные уведомления по списку квестов.
-  static Future<void> rescheduleForActiveQuests(List<Quest> quests) async {
+  static Future<void> rescheduleForActiveQuests(
+    List<Quest> quests, {
+    required SystemId systemId,
+    required SystemRules systemRules,
+  }) async {
     if (kIsWeb || !_inited) return;
 
     for (var id = 9000; id < 9100; id++) {
@@ -77,9 +84,15 @@ abstract final class QuestNotificationService {
       if (!remind.isAfter(now)) continue;
 
       final when = tz.TZDateTime.from(remind, tz.local);
-      final title = TranslationService.translate('notif_quest_deadline_title');
+      final nav =
+          SystemHomeNavLabels.effectiveNavSystemId(systemId, systemRules);
+      final titleKey = 'notif_quest_deadline_title_${nav.name}';
+      var title = TranslationService.translate(titleKey);
+      if (title == titleKey) {
+        title = TranslationService.translate('notif_quest_deadline_title');
+      }
       final body = TranslationService.translate(
-        'notif_quest_deadline_body',
+        'notif_quest_deadline_body_${nav.name}',
         params: {'title': q.title},
       );
 

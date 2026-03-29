@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/promo_ui.dart';
-import '../../core/theme.dart';
 import '../../core/translations.dart';
 import '../../core/systems/system_id.dart';
 import '../../core/systems/systems_catalog.dart';
 import 'custom_system_builder_page.dart';
 import 'system_lore_fullscreen_page.dart';
+import '../../core/progression_gates.dart';
 import '../../services/database_service.dart';
 import '../../services/providers.dart';
 
@@ -84,6 +84,7 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     final current = ref.watch(activeSystemIdProvider);
     final activeCustomSlug = ref.watch(activeCustomSlugProvider);
 
@@ -118,7 +119,7 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                       child: Text(
                         t('system_philosophy'),
                         style: GoogleFonts.manrope(
-                          color: SoloLevelingColors.textPrimary,
+                          color: scheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
@@ -134,7 +135,7 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                 child: Text(
                   t('system_philosophy_subtitle'),
                   style: GoogleFonts.manrope(
-                    color: SoloLevelingColors.textSecondary,
+                    color: scheme.onSurfaceVariant,
                     height: 1.35,
                   ),
                   textAlign: TextAlign.center,
@@ -186,7 +187,7 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                                   child: Text(
                                     t(_nameKey(id)),
                                     style: GoogleFonts.manrope(
-                                      color: SoloLevelingColors.textPrimary,
+                                      color: scheme.onSurface,
                                       fontSize: 18,
                                       fontWeight: FontWeight.w900,
                                     ),
@@ -200,7 +201,7 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                             Text(
                               '${cfg.aiVoiceName} · ${cfg.aiToneHint}',
                               style: GoogleFonts.manrope(
-                                color: SoloLevelingColors.textSecondary,
+                                color: scheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -211,7 +212,7 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                                   activeCustomSlug,
                                 ),
                                 style: GoogleFonts.manrope(
-                                  color: SoloLevelingColors.textTertiary,
+                                  color: scheme.outline,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 12,
                                 ),
@@ -279,12 +280,17 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                                 onPressed: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const CustomSystemBuilderPage(),
+                                      builder: (_) => CustomSystemBuilderPage(
+                                        philosophyPickerIsFirstRun:
+                                            widget.isFirstRun,
+                                      ),
                                     ),
                                   );
                                 },
                                 child: Text(t('custom_configure')),
                               ),
+                              if (!widget.isFirstRun)
+                                _LaboratoryLockedHint(translate: t),
                             ],
                             if (widget.isFirstRun) ...[
                               const SizedBox(height: 10),
@@ -328,7 +334,7 @@ class _SystemSelectionScreenState extends ConsumerState<SystemSelectionScreen> {
                 child: Text(
                   t('system_selection_hint'),
                   style: GoogleFonts.manrope(
-                    color: SoloLevelingColors.textTertiary,
+                    color: scheme.outline,
                     fontSize: 12,
                     height: 1.35,
                   ),
@@ -351,13 +357,14 @@ class _TermRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
           child: Text(
             label,
             style: GoogleFonts.manrope(
-              color: SoloLevelingColors.textSecondary,
+              color: scheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -365,11 +372,47 @@ class _TermRow extends StatelessWidget {
         Text(
           value,
           style: GoogleFonts.manrope(
-            color: SoloLevelingColors.neonBlue,
+            color: scheme.primary,
             fontWeight: FontWeight.w800,
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Подсказка под кнопкой кастом-мира: условия Лаборатории (не онбординг).
+class _LaboratoryLockedHint extends ConsumerWidget {
+  const _LaboratoryLockedHint({required this.translate});
+
+  final String Function(String key, {Map<String, String>? params}) translate;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hunter = ref.watch(hunterProvider);
+    final completed = ref.watch(completedQuestsProvider);
+    final gate10 =
+        completed.any((q) => q.tags.contains('story_gate_10'));
+    final open = ProgressionGates.canOpenLaboratory(
+      hunterLevel: hunter?.level ?? 0,
+      philosophyPickerIsFirstRun: false,
+      completedStoryGate10: gate10,
+    );
+    if (open) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        translate(
+          'laboratory_locked_hint',
+          params: {'level': '${ProgressionGates.laboratoryMinLevel}'},
+        ),
+        textAlign: TextAlign.center,
+        style: GoogleFonts.manrope(
+          fontSize: 11,
+          height: 1.4,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }

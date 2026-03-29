@@ -7,6 +7,7 @@ import 'buff_model.dart';
 import 'quest_model.dart';
 import '../data/items_data.dart';
 import '../data/skills_data.dart';
+import '../data/titles_data.dart';
 import '../core/quest_utils.dart';
 import '../core/experience_curve.dart';
 
@@ -44,6 +45,15 @@ class Hunter {
 
   /// Скрытый «класс», открытый аналитикой тегов (например coder).
   final String? hiddenClassId;
+  
+  /// Текущий экипированный титул.
+  final String? equippedTitleId;
+  
+  /// Список ID разблокированных титулов.
+  final List<String> unlockedTitleIds;
+
+  /// Святилище: до этой отметки штрафы за просрочку/провал не начисляются.
+  final DateTime? sanctuaryUntil;
 
   Hunter({
     String? id,
@@ -63,6 +73,9 @@ class Hunter {
     this.activeBuffs = const [],
     this.dailyQuestStreak = 0,
     this.hiddenClassId,
+    this.equippedTitleId,
+    this.unlockedTitleIds = const [],
+    this.sanctuaryUntil,
   }) : id = id ?? const Uuid().v4(),
        maxExp = maxExp ??
            ExperienceCurve.maxExperienceForLevel(level), // Кривая опыта
@@ -74,9 +87,15 @@ class Hunter {
   double get levelProgress => (maxExp == 0) ? 0 : currentExp / maxExp;
   bool get canLevelUp => currentExp >= maxExp;
 
-  /// Бонус характеристик только от экипировки (`stat_strength` и т.д. в effects).
-  Stats get equipmentStatsBonus {
+  /// Активен предмет «Святилище» (или его продление).
+  bool get isSanctuaryActive =>
+      sanctuaryUntil != null && DateTime.now().isBefore(sanctuaryUntil!);
+
+  /// Бонус характеристик от экипировки и титула (`stat_strength` и т.д. в effects).
+  Stats get passiveStatsBonus {
     int s = 0, a = 0, i = 0, v = 0;
+    
+    // Экипировка
     for (final equipped in equipment.values) {
       if (equipped?.effects == null) continue;
       final e = equipped!.effects!;
@@ -85,6 +104,19 @@ class Hunter {
       i += (e['stat_intelligence'] as num?)?.toInt() ?? 0;
       v += (e['stat_vitality'] as num?)?.toInt() ?? 0;
     }
+    
+    // Титул
+    if (equippedTitleId != null) {
+      final title = getTitleById(equippedTitleId!);
+      if (title != null) {
+        final e = title.effects;
+        s += (e['stat_strength'] as num?)?.toInt() ?? 0;
+        a += (e['stat_agility'] as num?)?.toInt() ?? 0;
+        i += (e['stat_intelligence'] as num?)?.toInt() ?? 0;
+        v += (e['stat_vitality'] as num?)?.toInt() ?? 0;
+      }
+    }
+
     return Stats(
       strength: s,
       agility: a,
@@ -94,8 +126,8 @@ class Hunter {
     );
   }
 
-  /// Итоговые статы для отображения (база + экипировка).
-  Stats get displayStats => stats.mergeEquipmentBonus(equipmentStatsBonus);
+  /// Итоговые статы для отображения (база + пассивки).
+  Stats get displayStats => stats.mergeEquipmentBonus(passiveStatsBonus);
 
   /// Текст для промпта ИИ: акцент на самых низких базовых статах.
   String describeLowestStatsForPrompt() {
@@ -153,6 +185,9 @@ class Hunter {
     List<Buff>? activeBuffs,
     int? dailyQuestStreak,
     String? hiddenClassId,
+    String? equippedTitleId,
+    List<String>? unlockedTitleIds,
+    DateTime? sanctuaryUntil,
   }) {
     return Hunter(
       id: id ?? this.id,
@@ -171,6 +206,9 @@ class Hunter {
       activeBuffs: activeBuffs ?? this.activeBuffs,
       dailyQuestStreak: dailyQuestStreak ?? this.dailyQuestStreak,
       hiddenClassId: hiddenClassId ?? this.hiddenClassId,
+      equippedTitleId: equippedTitleId ?? this.equippedTitleId,
+      unlockedTitleIds: unlockedTitleIds ?? this.unlockedTitleIds,
+      sanctuaryUntil: sanctuaryUntil ?? this.sanctuaryUntil,
     );
   }
 
@@ -191,6 +229,13 @@ class Hunter {
       if (buff.effectId == 'penalty_zone') {
         expMultiplier *= (buff.value as num).toDouble();
       }
+      // Калибровка сложности: множители совпадают с [AdaptiveCalibrationDialog] / золотом в квестах.
+      if (buff.effectId == 'adaptive_hard') {
+        expMultiplier *= (buff.value as num).toDouble();
+      }
+      if (buff.effectId == 'adaptive_soft') {
+        expMultiplier *= (buff.value as num).toDouble();
+      }
     }
 
     // Проверяем пассивные статы экипировки
@@ -204,6 +249,14 @@ class Hunter {
             isHardQuestType(questType)) {
           expMultiplier += (effects['xp_hard_quest'] as num).toDouble();
         }
+      }
+    }
+
+    // Проверяем бонус титула
+    if (equippedTitleId != null) {
+      final title = getTitleById(equippedTitleId!);
+      if (title != null && title.effects.containsKey('xp_bonus')) {
+        expMultiplier += (title.effects['xp_bonus'] as num).toDouble();
       }
     }
 
@@ -251,6 +304,10 @@ class Hunter {
       'activeBuffs': activeBuffs.map((b) => b.toMap()).toList(),
       'dailyQuestStreak': dailyQuestStreak,
       'hiddenClassId': hiddenClassId,
+      'equippedTitleId': equippedTitleId,
+      'unlockedTitleIds': unlockedTitleIds,
+      if (sanctuaryUntil != null)
+        'sanctuaryUntil': sanctuaryUntil!.toIso8601String(),
     };
   }
 
@@ -328,6 +385,11 @@ class Hunter {
           [],
       dailyQuestStreak: (map['dailyQuestStreak'] as num?)?.toInt() ?? 0,
       hiddenClassId: map['hiddenClassId'] as String?,
+      equippedTitleId: map['equippedTitleId'] as String?,
+      unlockedTitleIds: (map['unlockedTitleIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      sanctuaryUntil: map['sanctuaryUntil'] != null
+          ? DateTime.tryParse(map['sanctuaryUntil'].toString())
+          : null,
     );
   }
 }

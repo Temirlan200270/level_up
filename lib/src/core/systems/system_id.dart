@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 enum SystemId {
   solo('solo'),
   mage('mage'),
@@ -6,6 +8,19 @@ enum SystemId {
 
   const SystemId(this.value);
   final String value;
+
+  IconData get icon {
+    switch (this) {
+      case SystemId.solo:
+        return Icons.person_rounded;
+      case SystemId.mage:
+        return Icons.auto_awesome_rounded;
+      case SystemId.cultivator:
+        return Icons.spa_rounded;
+      case SystemId.custom:
+        return Icons.dashboard_customize_rounded;
+    }
+  }
 
   static SystemId fromValue(String raw) {
     if (raw.startsWith('custom_')) {

@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme.dart';
 import '../../core/translations.dart';
+import '../../services/database_service.dart';
 import '../../services/providers.dart';
 
 /// Полупрозрачный оверлей с таймером фокус-сессии (навык «Медитация»).
@@ -17,6 +17,8 @@ class FocusSessionLayer extends ConsumerStatefulWidget {
 
 class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
   Timer? _tick;
+  /// Ключ сессии, для которой уже выполнен естественный выход (таймер → один зачёт).
+  String? _naturalEndClaimedKey;
 
   @override
   void dispose() {
@@ -24,27 +26,60 @@ class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
     super.dispose();
   }
 
-  void _ensureTimer(FocusSessionState? session) {
+  String _sessionKey(FocusSessionState s) =>
+      '${s.endsAt.toIso8601String()}_${s.plannedDurationSeconds}_${s.closedMeditation}';
+
+  /// Защита от двойного зачёта гильдии/награды при гонке таймера и кадра.
+  void _maybeRecordGuildFocusRaid(FocusSessionState s) {
+    if (s.plannedDurationSeconds < 60) return;
+    // Ключ хранится в замыкании async — дубли по тем же endsAt/planned не пишем в Hive.
+    _GuildRaidDedupe.instance.tryRecord(s, () async {
+      await DatabaseService.recordGuildFocusRaidCompletion(
+        s.plannedDurationSeconds,
+      );
+      if (mounted) {
+        ref.read(settingsMetaRefreshProvider.notifier).state++;
+        ref.read(livingHeaderPulseProvider.notifier).state++;
+      }
+    });
+  }
+
+  void _onFocusSessionNaturalEnd(FocusSessionState s) {
+    final key = _sessionKey(s);
+    if (_naturalEndClaimedKey == key) return;
+    _naturalEndClaimedKey = key;
+
+    _maybeRecordGuildFocusRaid(s);
+    if (s.closedMeditation && !s.rewardGranted) {
+      unawaited(ref.read(hunterProvider.notifier).addExperience(25));
+    }
+
     _tick?.cancel();
     _tick = null;
-    if (session == null) return;
+
+    // Сброс провайдера после кадра — не во время build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(focusSessionProvider.notifier).state = null;
+      setState(() {});
+    });
+  }
+
+  void _ensureTimer(FocusSessionState session) {
+    _tick?.cancel();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       final s = ref.read(focusSessionProvider);
       if (s != null && DateTime.now().isAfter(s.endsAt)) {
-        if (s.closedMeditation && !s.rewardGranted) {
-          // Награда за успешную закрытую медитацию (cultivator).
-          // Математика пока базовая; дальше будет через SystemRules.
-          unawaited(ref.read(hunterProvider.notifier).addExperience(25));
-          ref.read(focusSessionProvider.notifier).state =
-              s.copyWith(rewardGranted: true);
-        }
-        ref.read(focusSessionProvider.notifier).state = null;
-        _tick?.cancel();
+        _onFocusSessionNaturalEnd(s);
       } else {
         setState(() {});
       }
     });
+    // Если дедлайн уже прошёл до старта таймера — один вызов без дубля из build.
+    if (DateTime.now().isAfter(session.endsAt)) {
+      _onFocusSessionNaturalEnd(session);
+    }
   }
 
   @override
@@ -53,21 +88,24 @@ class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
     if (session == null) {
       _tick?.cancel();
       _tick = null;
+      _naturalEndClaimedKey = null;
+      _GuildRaidDedupe.instance.reset();
       return const SizedBox.shrink();
     }
 
     if (_tick == null || !_tick!.isActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _ensureTimer(session);
+        if (!mounted) return;
+        final s = ref.read(focusSessionProvider);
+        if (s != null) _ensureTimer(s);
       });
     }
 
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     final now = DateTime.now();
     if (now.isAfter(session.endsAt)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(focusSessionProvider.notifier).state = null;
-      });
+      // Только планирование таймера; завершение делает [Timer] или немедленная ветка в [_ensureTimer].
       return const SizedBox.shrink();
     }
 
@@ -89,7 +127,7 @@ class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
                   Icon(
                     Icons.self_improvement,
                     size: 64,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: scheme.primary,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -98,7 +136,7 @@ class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
                         : t('focus_session_title'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: SoloLevelingColors.textPrimary,
+                      color: scheme.onSurface,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -109,14 +147,14 @@ class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
                         : t('focus_session_hint'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: SoloLevelingColors.textSecondary,
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 24),
                   Text(
                     hh > 0 ? '$hh:$mm:$ss' : '$mm:$ss',
                     style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
+                      color: scheme.primary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -126,6 +164,8 @@ class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
                       onPressed: () {
                         ref.read(focusSessionProvider.notifier).state = null;
                         _tick?.cancel();
+                        _naturalEndClaimedKey = null;
+                        _GuildRaidDedupe.instance.reset();
                       },
                       child: Text(t('focus_session_dismiss')),
                     ),
@@ -136,5 +176,35 @@ class _FocusSessionLayerState extends ConsumerState<FocusSessionLayer> {
         ),
       ),
     );
+  }
+}
+
+/// Синглтон на время жизни слоя: не записывать рейд дважды для одной пары endsAt+planned.
+class _GuildRaidDedupe {
+  _GuildRaidDedupe._();
+  static final _GuildRaidDedupe instance = _GuildRaidDedupe._();
+
+  String? _lastKey;
+  bool _inFlight = false;
+
+  void reset() {
+    _lastKey = null;
+    _inFlight = false;
+  }
+
+  Future<void> tryRecord(
+    FocusSessionState s,
+    Future<void> Function() run,
+  ) async {
+    final key =
+        '${s.endsAt.toIso8601String()}_${s.plannedDurationSeconds}';
+    if (_lastKey == key || _inFlight) return;
+    _lastKey = key;
+    _inFlight = true;
+    try {
+      await run();
+    } finally {
+      _inFlight = false;
+    }
   }
 }

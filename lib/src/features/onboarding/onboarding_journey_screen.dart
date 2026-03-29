@@ -11,6 +11,8 @@ import '../../core/systems/system_id.dart';
 import '../../core/systems/systems_catalog.dart';
 import '../../services/database_service.dart';
 import '../../services/providers.dart';
+import 'abyss_portal_screen.dart';
+import 'lore_portal_screen.dart';
 import '../../models/hunter_model.dart';
 import '../../models/quest_model.dart';
 import '../../services/supabase/public_profiles_service.dart';
@@ -18,6 +20,7 @@ import '../system/system_selection_screen.dart';
 import 'onboarding_ai_service.dart';
 import 'onboarding_models.dart';
 import 'typewriter_text.dart';
+import 'onboarding_atmosphere.dart';
 
 class OnboardingJourneyScreen extends ConsumerStatefulWidget {
   const OnboardingJourneyScreen({super.key});
@@ -27,12 +30,18 @@ class OnboardingJourneyScreen extends ConsumerStatefulWidget {
       _OnboardingJourneyScreenState();
 }
 
-class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScreen> {
+class _OnboardingJourneyScreenState
+    extends ConsumerState<OnboardingJourneyScreen> {
   bool _busy = false;
   String? _error;
+  bool _showWhiteFlash = false;
+  bool _lorePortalFlash = false;
+  bool _lorePortalBusy = false;
 
   // Persona inputs.
-  final _roleCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _strengthsCtrl = TextEditingController();
+  final _weaknessesCtrl = TextEditingController();
   final _goalCtrl = TextEditingController();
   final _interest = <String>{};
 
@@ -42,7 +51,9 @@ class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScree
     final raw = DatabaseService.getOnboardingPersonaRaw();
     final persona = OnboardingPersona.fromMap(raw);
     if (persona != null) {
-      _roleCtrl.text = persona.selfRole;
+      _nameCtrl.text = persona.name;
+      _strengthsCtrl.text = persona.strengths;
+      _weaknessesCtrl.text = persona.weaknesses;
       _goalCtrl.text = persona.goal;
       _interest.addAll(persona.interests);
     }
@@ -50,7 +61,9 @@ class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScree
 
   @override
   void dispose() {
-    _roleCtrl.dispose();
+    _nameCtrl.dispose();
+    _strengthsCtrl.dispose();
+    _weaknessesCtrl.dispose();
     _goalCtrl.dispose();
     super.dispose();
   }
@@ -60,17 +73,48 @@ class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScree
     if (mounted) setState(() {});
   }
 
+  Future<void> _advanceFromAbyssPortal() async {
+    await _go(OnboardingStep.needLore);
+  }
+
+  /// Вспышка и переход с портала лора к выбору философии (Фаза 7.5).
+  Future<void> _advanceFromLorePortal() async {
+    if (_lorePortalBusy) return;
+    _lorePortalBusy = true;
+    try {
+      if (!mounted) return;
+      setState(() => _lorePortalFlash = true);
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _go(OnboardingStep.needPhilosophySelection);
+      if (!mounted) return;
+      await Future<void>.delayed(const Duration(milliseconds: 90));
+      if (mounted) setState(() => _lorePortalFlash = false);
+    } finally {
+      _lorePortalBusy = false;
+    }
+  }
+
   Future<void> _savePersonaAndProceed() async {
-    final role = _roleCtrl.text.trim();
+    final name = _nameCtrl.text.trim();
+    final strengths = _strengthsCtrl.text.trim();
+    final weaknesses = _weaknessesCtrl.text.trim();
     final goal = _goalCtrl.text.trim();
-    if (role.isEmpty || goal.isEmpty) {
+
+    if (name.isEmpty ||
+        strengths.isEmpty ||
+        weaknesses.isEmpty ||
+        goal.isEmpty) {
       setState(() => _error = useTranslations(ref)('onb_master_validation'));
       return;
     }
+
     final persona = OnboardingPersona(
-      selfRole: role,
-      interests: _interest.toList(),
+      name: name,
+      strengths: strengths,
+      weaknesses: weaknesses,
+      selfRole: name,
       goal: goal,
+      interests: _interest.toList(),
     );
     await DatabaseService.setOnboardingPersonaRaw(persona.toMap());
     await _go(OnboardingStep.needAiProcessing);
@@ -93,18 +137,33 @@ class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScree
             )
           : SystemsCatalog.forId(systemId);
       final raw = DatabaseService.getOnboardingPersonaRaw();
-      final persona = OnboardingPersona.fromMap(raw) ??
-          const OnboardingPersona(selfRole: 'Игрок', interests: [], goal: 'Стать сильнее');
+      final persona =
+          OnboardingPersona.fromMap(raw ?? {}) ??
+          const OnboardingPersona(
+            name: 'Игрок',
+            strengths: '',
+            weaknesses: '',
+            selfRole: 'Игрок',
+            interests: [],
+            goal: 'Стать сильнее',
+          );
 
       final ai = const OnboardingAiService();
       final result = await ai.initPersona(system: cfg, persona: persona);
 
-      // Применяем скрытый класс.
-      if ((result.hiddenClass).trim().isNotEmpty) {
-        await ref.read(hunterProvider.notifier).updateHunter(
-              hunter.copyWith(hiddenClassId: result.hiddenClass),
-            );
-      }
+      // Применяем имя и скрытый класс
+      await ref
+          .read(hunterProvider.notifier)
+          .updateHunter(
+            hunter.copyWith(
+              name: _nameCtrl.text.trim().isNotEmpty
+                  ? _nameCtrl.text.trim()
+                  : persona.name,
+              hiddenClassId: result.hiddenClass.trim().isNotEmpty
+                  ? result.hiddenClass
+                  : hunter.hiddenClassId,
+            ),
+          );
 
       // Создаём стартовые квесты (в текущей системе).
       for (final q in result.quests.take(5)) {
@@ -117,11 +176,7 @@ class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScree
             goldReward: q.gold,
             statPointsReward: q.statPoints,
             mandatory: q.mandatory,
-            tags: [
-              ...q.tags,
-              'system',
-              'onboarding',
-            ],
+            tags: [...q.tags, 'system', 'onboarding'],
             difficulty: q.difficulty,
             expiresAt: DateTime.now().add(const Duration(days: 7)),
           ),
@@ -142,16 +197,33 @@ class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScree
         // Игнорируем: онбординг должен завершаться и без облака.
       }
 
+      // Синхронизация с Hive: без охотника в провайдере HomeShell не откроется.
+      ref.read(hunterProvider.notifier).reloadFromLocalDb();
+      if (ref.read(hunterProvider) == null) {
+        final nm = _nameCtrl.text.trim().isNotEmpty
+            ? _nameCtrl.text.trim()
+            : (persona.name.trim().isNotEmpty ? persona.name : 'Игрок');
+        await DatabaseService.createDefaultHunter(nm);
+        ref.read(hunterProvider.notifier).reloadFromLocalDb();
+      }
+
       await DatabaseService.setOnboardingStep(OnboardingStep.done);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('onb_done_snack'))),
-      );
+      // Показываем белую вспышку
+      setState(() => _showWhiteFlash = true);
 
-      // Возвращаемся в `HomeShell`, чтобы нижняя навигация была на месте.
+      // Ждем, пока экран заполнится белым
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('onb_done_snack'))));
+
       ref.read(homeTabIndexProvider.notifier).state = 1; // вкладка "Квесты"
-      Navigator.of(context).pop();
+      ref.read(settingsMetaRefreshProvider.notifier).state++;
     } catch (e) {
       setState(() => _error = '${t('error')}: $e');
     } finally {
@@ -167,109 +239,100 @@ class _OnboardingJourneyScreenState extends ConsumerState<OnboardingJourneyScree
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: ProfileBackdrop(
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 280),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              child: switch (step) {
-                OnboardingStep.needLore => _LoreStep(
-                    key: const ValueKey('lore'),
-                    onNext: () => _go(OnboardingStep.needPhilosophySelection),
-                  ),
-                OnboardingStep.needPhilosophySelection => SystemSelectionScreen(
-                    key: const ValueKey('ph'),
-                    isFirstRun: true,
-                    showBackButton: false,
-                    onClose: () {
-                      // Экран сам выставляет следующий `OnboardingStep`.
-                      if (mounted) setState(() {});
-                    },
-                  ),
-                OnboardingStep.needMasterEncounter => _MasterStep(
-                    key: const ValueKey('master'),
-                    roleCtrl: _roleCtrl,
-                    goalCtrl: _goalCtrl,
-                    interest: _interest,
-                    error: _error,
-                    onNext: _savePersonaAndProceed,
-                  ),
-                OnboardingStep.needAiProcessing => _ProcessingStep(
-                    key: const ValueKey('ai'),
-                    busy: _busy,
-                    error: _error,
-                    onStart: _runAiAndApply,
-                    accent: scheme.secondary,
-                  ),
-                OnboardingStep.done => Center(
-                    key: const ValueKey('done'),
-                    child: Text(
-                      t('onb_done'),
-                      style: GoogleFonts.manrope(
-                        color: SoloLevelingColors.textPrimary,
-                        fontWeight: FontWeight.w700,
+      body: Stack(
+        children: [
+          ProfileBackdrop(
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: switch (step) {
+                    OnboardingStep.needAbyssPortal => AbyssPortalScreen(
+                      key: const ValueKey('abyss'),
+                      onEnterAbyss: _advanceFromAbyssPortal,
+                    ),
+                    OnboardingStep.needLore => LorePortalScreen(
+                      key: const ValueKey('lore'),
+                      onContinue: _advanceFromLorePortal,
+                    ),
+                    OnboardingStep.needPhilosophySelection =>
+                      SystemSelectionScreen(
+                        key: const ValueKey('ph'),
+                        isFirstRun: true,
+                        showBackButton: false,
+                        onClose: () {
+                          // Экран сам выставляет следующий `OnboardingStep`.
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                    OnboardingStep.needMasterEncounter => _MasterStep(
+                      key: const ValueKey('master'),
+                      systemId: ref.watch(activeSystemIdProvider),
+                      nameCtrl: _nameCtrl,
+                      strengthsCtrl: _strengthsCtrl,
+                      weaknessesCtrl: _weaknessesCtrl,
+                      goalCtrl: _goalCtrl,
+                      interest: _interest,
+                      error: _error,
+                      onNext: _savePersonaAndProceed,
+                    ),
+                    OnboardingStep.needAiProcessing => _ProcessingStep(
+                      key: const ValueKey('ai'),
+                      busy: _busy,
+                      error: _error,
+                      onStart: _runAiAndApply,
+                      accent: scheme.secondary,
+                    ),
+                    OnboardingStep.done => Center(
+                      key: const ValueKey('done'),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 16),
+                          Text(
+                            t('onboarding_recovery_loading'),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.manrope(
+                              color: SoloLevelingColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-              },
+                  },
+                ),
+              ),
             ),
           ),
-        ),
+
+          // Вспышка: портал лора → выбор философии
+          IgnorePointer(
+            ignoring: !_lorePortalFlash,
+            child: AnimatedOpacity(
+              opacity: _lorePortalFlash ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              child: Container(color: Colors.white),
+            ),
+          ),
+
+          // Эффект белой вспышки при пробуждении
+          IgnorePointer(
+            ignoring: !_showWhiteFlash,
+            child: AnimatedOpacity(
+              opacity: _showWhiteFlash ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeIn,
+              child: Container(color: Colors.white),
+            ),
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _LoreStep extends StatelessWidget {
-  const _LoreStep({super.key, required this.onNext});
-  final VoidCallback onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      key: key,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 10),
-        Text(
-          'Портал Лора',
-          style: promoAppBarTitleStyle(context),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: ProfileNeonCard(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TypewriterText(
-                  text:
-                      'Ты стоишь на границе миров. Здесь рутина превращается в силу, а привычки — в заклинания.\n\n'
-                      'Система спрашивает: готов ли ты пройти через врата и назвать своё намерение?',
-                ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: onNext,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: scheme.secondary.withValues(alpha: 0.9),
-                    foregroundColor: scheme.onSecondary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  child: const Text('Шагнуть в неизвестность'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -337,10 +400,7 @@ class _SystemCardArtState extends State<_SystemCardArt> {
                           gradient: LinearGradient(
                             begin: Alignment.centerLeft,
                             end: Alignment.centerRight,
-                            colors: [
-                              tintA,
-                              tintB,
-                            ],
+                            colors: [tintA, tintB],
                           ),
                         ),
                       ),
@@ -419,21 +479,48 @@ class _SystemCardArtState extends State<_SystemCardArt> {
   }
 }
 
-class _MasterStep extends StatelessWidget {
+class _MasterStep extends StatefulWidget {
   const _MasterStep({
     super.key,
-    required this.roleCtrl,
+    required this.systemId,
+    required this.nameCtrl,
+    required this.strengthsCtrl,
+    required this.weaknessesCtrl,
     required this.goalCtrl,
     required this.interest,
     required this.error,
     required this.onNext,
   });
 
-  final TextEditingController roleCtrl;
+  final SystemId systemId;
+  final TextEditingController nameCtrl;
+  final TextEditingController strengthsCtrl;
+  final TextEditingController weaknessesCtrl;
   final TextEditingController goalCtrl;
   final Set<String> interest;
   final String? error;
   final VoidCallback onNext;
+
+  @override
+  State<_MasterStep> createState() => _MasterStepState();
+}
+
+class _MasterStepState extends State<_MasterStep> {
+  int _dialogPhase =
+      0; // 0 - name, 1 - strengths/weaknesses, 2 - goal/interests
+
+  void _nextPhase() {
+    if (_dialogPhase == 0 && widget.nameCtrl.text.trim().isEmpty) return;
+    if (_dialogPhase == 1 &&
+        (widget.strengthsCtrl.text.trim().isEmpty ||
+            widget.weaknessesCtrl.text.trim().isEmpty)) {
+      return;
+    }
+
+    setState(() {
+      _dialogPhase++;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -450,101 +537,248 @@ class _MasterStep extends StatelessWidget {
     ];
 
     return Column(
-      key: key,
+      key: widget.key,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 10),
+        const SizedBox(height: 20),
         Text(
           'Встреча с Мастером',
-          style: promoAppBarTitleStyle(context),
+          style: promoAppBarTitleStyle(context).copyWith(
+            color: SoloLevelingColors.textPrimary.withValues(alpha: 0.8),
+            letterSpacing: 2,
+          ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
         Expanded(
           child: ProfileNeonCard(
             padding: EdgeInsets.zero,
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
-                18,
-                18,
-                18,
-                18 + MediaQuery.viewInsetsOf(context).bottom,
+                24,
+                32,
+                24,
+                32 + MediaQuery.viewInsetsOf(context).bottom,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TypewriterText(
-                    text:
-                        'Голос из тени обращается к тебе.\n\n'
-                        '— Назови себя. И скажи, зачем ты явился.',
-                    charDelay: const Duration(milliseconds: 14),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: roleCtrl,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Кто ты? (роль)',
-                      hintText: 'Например: “программист”, “студент”, “спортсмен”…',
+                  OnboardingMasterAvatar(systemId: widget.systemId),
+                  const SizedBox(height: 20),
+                  if (_dialogPhase >= 0) ...[
+                    TypewriterText(
+                      key: ValueKey('m0-${widget.systemId}'),
+                      text:
+                          'Голос из тени обращается к тебе.\n— Назови себя, смертный... или тот, кто им был.',
+                      charDelay: const Duration(milliseconds: 30),
+                      style: GoogleFonts.manrope(
+                        color: SoloLevelingColors.textPrimary,
+                        fontSize: 16,
+                        height: 1.5,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: goalCtrl,
-                    maxLines: 2,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'Что хочешь подтянуть?',
-                      hintText: 'Например: “дисциплину”, “фокус”, “здоровье”…',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Увлечения',
-                    style: GoogleFonts.manrope(
-                      color: SoloLevelingColors.textSecondary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final c in chips)
-                        FilterChip(
-                          selected: interest.contains(c['id']),
-                          label: Text(c['label'] ?? ''),
-                          selectedColor: scheme.secondary.withValues(alpha: 0.22),
-                          checkmarkColor: scheme.secondary,
-                          onSelected: (v) {
-                            final id = c['id'];
-                            if (id == null) return;
-                            if (v) {
-                              interest.add(id);
-                            } else {
-                              interest.remove(id);
-                            }
-                            (context as Element).markNeedsBuild();
-                          },
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: widget.nameCtrl,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _nextPhase(),
+                      autofocus: true,
+                      style: GoogleFonts.manrope(
+                        color: scheme.secondary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Твоё имя',
+                        hintText: 'Охотник...',
+                        border: const UnderlineInputBorder(),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(
+                            color: scheme.secondary,
+                            width: 2,
+                          ),
                         ),
-                    ],
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 12),
+                      ),
+                    ),
+                  ],
+
+                  if (_dialogPhase >= 1) ...[
+                    const SizedBox(height: 40),
+                    TypewriterText(
+                      text:
+                          '— Что движет тобой? Твои искры (сильные стороны) и твои тени (слабые стороны)?',
+                      charDelay: const Duration(milliseconds: 30),
+                      style: GoogleFonts.manrope(
+                        color: SoloLevelingColors.textPrimary,
+                        fontSize: 16,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: widget.strengthsCtrl,
+                      textInputAction: TextInputAction.next,
+                      style: GoogleFonts.manrope(
+                        color: scheme.secondary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Искры (Сильные стороны)',
+                        hintText: 'Например: “аналитика”, “упорство”...',
+                        border: const UnderlineInputBorder(),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(
+                            color: scheme.secondary,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: widget.weaknessesCtrl,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _nextPhase(),
+                      style: GoogleFonts.manrope(
+                        color: scheme.secondary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Тени (Слабые стороны)',
+                        hintText: 'Например: “лень”, “прокрастинация”...',
+                        border: const UnderlineInputBorder(),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(
+                            color: scheme.secondary,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  if (_dialogPhase >= 2) ...[
+                    const SizedBox(height: 40),
+                    TypewriterText(
+                      text:
+                          '— Чем ты занимаешь свой разум? Что ты хочешь выковать из своего сосуда?',
+                      charDelay: const Duration(milliseconds: 30),
+                      style: GoogleFonts.manrope(
+                        color: SoloLevelingColors.textPrimary,
+                        fontSize: 16,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: widget.goalCtrl,
+                      textInputAction: TextInputAction.done,
+                      style: GoogleFonts.manrope(
+                        color: scheme.secondary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Твоя главная цель',
+                        hintText: 'Например: “стать сеньором”, “похудеть”...',
+                        border: const UnderlineInputBorder(),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(
+                            color: scheme.secondary,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 12,
+                      children: [
+                        for (final c in chips)
+                          FilterChip(
+                            selected: widget.interest.contains(c['id']),
+                            label: Text(c['label'] ?? ''),
+                            labelStyle: GoogleFonts.manrope(
+                              color: widget.interest.contains(c['id'])
+                                  ? scheme.onSecondary
+                                  : SoloLevelingColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            selectedColor: scheme.secondary,
+                            backgroundColor: scheme.surface.withValues(
+                              alpha: 0.5,
+                            ),
+                            checkmarkColor: scheme.onSecondary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            onSelected: (v) {
+                              final id = c['id'];
+                              if (id == null) return;
+                              setState(() {
+                                if (v) {
+                                  widget.interest.add(id);
+                                } else {
+                                  widget.interest.remove(id);
+                                }
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+
+                  if (widget.error != null) ...[
+                    const SizedBox(height: 24),
                     Text(
-                      error!,
+                      widget.error!,
                       style: GoogleFonts.manrope(
                         color: SoloLevelingColors.warning,
                         height: 1.35,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: onNext,
-                    child: const Text('Завершить диалог'),
-                  ),
+
+                  const SizedBox(height: 48),
+                  if (_dialogPhase < 2)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _nextPhase,
+                        child: Text(
+                          'Ответить',
+                          style: GoogleFonts.manrope(
+                            color: scheme.secondary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: widget.onNext,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: scheme.secondary,
+                        foregroundColor: scheme.onSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        'Завершить контракт',
+                        style: GoogleFonts.manrope(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -644,4 +878,3 @@ class _ProcessingStep extends StatelessWidget {
     );
   }
 }
-

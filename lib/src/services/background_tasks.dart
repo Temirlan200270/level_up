@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'database_service.dart';
+import 'translation_service.dart';
 
 abstract final class BackgroundTasks {
   static const String expireQuestsTask = 'expire_quests_task_v1';
@@ -36,6 +37,7 @@ abstract final class BackgroundTasks {
       WidgetsFlutterBinding.ensureInitialized();
       try {
         await DatabaseService.init();
+        await TranslationService.init();
         await DatabaseService.applyQuestDeadlinesInBackground();
       } catch (_) {
         // Ничего не падаем: фон не должен крашить процесс.

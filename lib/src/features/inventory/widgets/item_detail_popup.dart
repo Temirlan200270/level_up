@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../models/enums.dart';
 import '../../../models/hunter_model.dart';
 import '../../../services/providers.dart';
-import '../../../core/theme.dart';
+import '../../../core/system_visuals_extension.dart';
 import '../../../core/translations.dart';
 import '../../../core/item_rarity_style.dart';
 import '../../../core/economy_scale.dart';
@@ -17,6 +18,9 @@ class ItemDetailPopup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final item = slot.item;
+    final scheme = Theme.of(context).colorScheme;
+    final sheetTopR = (context.worldCardRadius * 1.35).clamp(18.0, 28.0);
+    final thumbR = (context.worldCardRadius * 0.65).clamp(8.0, 16.0);
     final rarityColor = ItemRarityStyle.color(
       item.rarity,
       theme: Theme.of(context),
@@ -31,8 +35,8 @@ class ItemDetailPopup extends ConsumerWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: SoloLevelingColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(sheetTopR)),
       ),
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.8,
@@ -46,19 +50,19 @@ class ItemDetailPopup extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: rarityColor.withValues(alpha: 0.2),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(sheetTopR),
                 ),
               ),
               child: Row(
                 children: [
-                  // Иконка предмета
                   Container(
                     width: 60,
                     height: 60,
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(12),
+                      color: scheme.surfaceContainerHighest
+                          .withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(thumbR),
                       border: Border.all(color: rarityColor, width: 2),
                     ),
                     child: Icon(
@@ -74,27 +78,27 @@ class ItemDetailPopup extends ConsumerWidget {
                       children: [
                         Text(
                           item.name,
-                          style: TextStyle(
+                          style: GoogleFonts.manrope(
                             color: rarityColor,
                             fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         if (slot.quantity > 1)
                           Text(
                             '${t('quantity')}: ${slot.quantity}',
-                            style: TextStyle(
-                              color: SoloLevelingColors.textSecondary,
+                            style: GoogleFonts.manrope(
+                              color: scheme.onSurfaceVariant,
                               fontSize: 14,
                             ),
                           ),
                         const SizedBox(height: 4),
                         Text(
                           t('rarity_${item.rarity.name}'),
-                          style: TextStyle(
+                          style: GoogleFonts.manrope(
                             color: rarityColor,
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -113,10 +117,11 @@ class ItemDetailPopup extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Text(
                 item.description,
-                style: TextStyle(
-                  color: SoloLevelingColors.textSecondary,
+                style: GoogleFonts.manrope(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 14,
                   fontStyle: FontStyle.italic,
+                  height: 1.4,
                 ),
               ),
             ),
@@ -131,10 +136,10 @@ class ItemDetailPopup extends ConsumerWidget {
                   children: [
                     Text(
                       '${t('effects')}:',
-                      style: TextStyle(
-                        color: SoloLevelingColors.textPrimary,
+                      style: GoogleFonts.manrope(
+                        color: scheme.onSurface,
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -146,13 +151,13 @@ class ItemDetailPopup extends ConsumerWidget {
                             Icon(
                               Icons.check_circle,
                               size: 16,
-                              color: SoloLevelingColors.neonGreen,
+                              color: scheme.primary,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               _formatEffect(entry.key, entry.value),
-                              style: TextStyle(
-                                color: SoloLevelingColors.textSecondary,
+                              style: GoogleFonts.manrope(
+                                color: scheme.onSurfaceVariant,
                                 fontSize: 14,
                               ),
                             ),
@@ -182,15 +187,15 @@ class ItemDetailPopup extends ConsumerWidget {
                               content: Text(
                                 t('item_used', params: {'name': item.name}),
                               ),
-                              backgroundColor: SoloLevelingColors.success,
+                              backgroundColor: scheme.primary,
                             ),
                           );
                         },
                         icon: const Icon(Icons.auto_fix_high),
                         label: Text(t('use')),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: SoloLevelingColors.neonGreen,
-                          foregroundColor: Colors.black,
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
                         ),
                       ),
                     ),
@@ -209,15 +214,15 @@ class ItemDetailPopup extends ConsumerWidget {
                               content: Text(
                                 t('item_equipped', params: {'name': item.name}),
                               ),
-                              backgroundColor: SoloLevelingColors.neonBlue,
+                              backgroundColor: scheme.secondary,
                             ),
                           );
                         },
                         icon: const Icon(Icons.check_circle),
                         label: Text(t('equip')),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: SoloLevelingColors.neonBlue,
-                          foregroundColor: Colors.white,
+                          backgroundColor: scheme.secondary,
+                          foregroundColor: scheme.onSecondary,
                         ),
                       ),
                     ),
@@ -248,7 +253,7 @@ class ItemDetailPopup extends ConsumerWidget {
                                     params: {'amount': totalPrice.toString()},
                                   ),
                                 ),
-                                backgroundColor: SoloLevelingColors.warning,
+                                backgroundColor: scheme.tertiary,
                               ),
                             );
                           }
@@ -256,8 +261,8 @@ class ItemDetailPopup extends ConsumerWidget {
                         icon: const Icon(Icons.sell),
                         label: Text(t('sell')),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: SoloLevelingColors.warning,
-                          foregroundColor: Colors.black,
+                          backgroundColor: scheme.tertiary,
+                          foregroundColor: scheme.onTertiary,
                         ),
                       ),
                     ),

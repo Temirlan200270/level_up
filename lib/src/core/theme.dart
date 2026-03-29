@@ -18,6 +18,7 @@ class SoloLevelingColors {
   // Статусы
   static const Color success = neonGreen;
   static const Color warning = Color(0xFFFFAA00);
+  static const Color legendaryOrange = Color(0xFFFF7A00);
   static const Color error = Color(0xFFFF0044);
 
   // Текст
@@ -132,7 +133,13 @@ class AppTheme {
         particlesKind: SystemParticlesKind.sparkles,
         panelRadius: 12,
         panelBorderWidth: 1,
+        panelBlur: 0,
         titleLetterSpacing: 2.2,
+        surfaceKind: SystemSurfaceKind.digital,
+        glowIntensity: 0.55,
+        borderRadiusScale: 1.0,
+        shadowProfile: SystemShadowProfile.glow,
+        grainOpacity: 0.05,
       ),
     ],
   );
@@ -197,8 +204,14 @@ class AppTheme {
         backgroundAssetPath: 'assets/backgrounds/cultivation_bg.svg',
         particlesKind: SystemParticlesKind.petals,
         panelRadius: 16,
-        panelBorderWidth: 1,
+        panelBorderWidth: 0.5,
+        panelBlur: 0,
         titleLetterSpacing: 1.8,
+        surfaceKind: SystemSurfaceKind.parchment,
+        glowIntensity: 0.22,
+        borderRadiusScale: 1.08,
+        shadowProfile: SystemShadowProfile.soft,
+        grainOpacity: 0.035,
       ),
     ],
   );
@@ -264,7 +277,13 @@ class AppTheme {
         particlesKind: SystemParticlesKind.runes,
         panelRadius: 14,
         panelBorderWidth: 1,
+        panelBlur: 14,
         titleLetterSpacing: 2.0,
+        surfaceKind: SystemSurfaceKind.glass,
+        glowIntensity: 0.32,
+        borderRadiusScale: 1.05,
+        shadowProfile: SystemShadowProfile.soft,
+        grainOpacity: 0.0,
       ),
     ],
   );

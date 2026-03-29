@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../services/providers.dart';
 
@@ -19,9 +20,9 @@ class GoldDisplay extends ConsumerWidget {
         children: [
           Text(
             '$gold',
-            style: TextStyle(
+            style: GoogleFonts.manrope(
               fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
               color: scheme.secondary,
             ),
           ),

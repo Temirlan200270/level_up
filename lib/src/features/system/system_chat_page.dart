@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../../core/system_visuals_extension.dart';
 import '../../core/translations.dart';
+import '../../core/widgets/world_surface_panel.dart';
 import '../../models/message_model.dart';
 import '../../models/hunter_model.dart';
 import '../../services/ai_service.dart';
@@ -133,19 +136,42 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
   @override
   Widget build(BuildContext context) {
     final t = useTranslations(ref);
+    final visuals = Theme.of(context).extension<SystemVisuals>() ??
+        const SystemVisuals(
+          backgroundKind: SystemBackgroundKind.grid,
+          backgroundAssetPath: '',
+          particlesKind: SystemParticlesKind.none,
+          panelRadius: 12,
+          panelBorderWidth: 1,
+          panelBlur: 0,
+          titleLetterSpacing: 2.2,
+          surfaceKind: SystemSurfaceKind.digital,
+          glowIntensity: 0.35,
+          borderRadiusScale: 1.0,
+          shadowProfile: SystemShadowProfile.soft,
+        );
+
+    final scheme = Theme.of(context).colorScheme;
+
     if (!_hasApiKey) {
       return Scaffold(
+        backgroundColor: Colors.transparent,
         body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: WorldSurfacePanel(
+              visuals: visuals,
+              margin: EdgeInsets.zero,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                   Icon(
                     Icons.key_off,
                     size: 80,
-                    color: SoloLevelingColors.neonBlue,
+                    color: scheme.primary,
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -166,7 +192,9 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                     },
                     child: Text(t('go_to_settings')),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -175,14 +203,19 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: Column(
-          children: [
-            // AppBar
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+          child: WorldSurfacePanel(
+            visuals: visuals,
+            margin: EdgeInsets.zero,
+            child: Column(
+              children: [
             AppBar(
               title: Row(
                 children: [
-                  Icon(Icons.smart_toy, color: SoloLevelingColors.neonBlue),
+                  Icon(Icons.smart_toy, color: scheme.primary),
                   const SizedBox(width: 8),
                   Text(t('system')),
                 ],
@@ -197,7 +230,7 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                       child: Text(
                         t('start_dialog_with_system'),
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: SoloLevelingColors.textTertiary,
+                          color: scheme.outline,
                         ),
                       ),
                     )
@@ -215,18 +248,19 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: SoloLevelingColors.surface,
+                                    color: scheme.surfaceContainerHigh,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: SoloLevelingColors.neonBlue,
+                                      color: scheme.primary,
                                       width: 1,
                                     ),
                                   ),
-                                  child: const SizedBox(
+                                  child: SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
+                                      color: scheme.primary,
                                     ),
                                   ),
                                 ),
@@ -236,7 +270,7 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                         }
 
                         final message = _messages[index];
-                        return _buildMessageBubble(message);
+                        return _buildMessageBubble(context, message);
                       },
                     ),
             ),
@@ -244,10 +278,10 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
             // Поле ввода
             Container(
               decoration: BoxDecoration(
-                color: SoloLevelingColors.surface,
+                color: scheme.surfaceContainerHigh,
                 border: Border(
                   top: BorderSide(
-                    color: SoloLevelingColors.neonBlue.withValues(alpha: 0.3),
+                    color: scheme.primary.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -261,25 +295,25 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                   Expanded(
                     child: TextField(
                       controller: _messageController,
-                      style: const TextStyle(
-                        color: SoloLevelingColors.textPrimary,
+                      style: GoogleFonts.manrope(
+                        color: scheme.onSurface,
                       ),
                       decoration: InputDecoration(
                         hintText: t('write_to_system'),
-                        hintStyle: TextStyle(
-                          color: SoloLevelingColors.textTertiary,
+                        hintStyle: GoogleFonts.manrope(
+                          color: scheme.outline,
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide(
-                            color: SoloLevelingColors.neonBlue,
+                            color: scheme.primary,
                             width: 1,
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide(
-                            color: SoloLevelingColors.neonBlue.withValues(
+                            color: scheme.primary.withValues(
                               alpha: 0.5,
                             ),
                             width: 1,
@@ -287,8 +321,8 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(
-                            color: SoloLevelingColors.neonBlue,
+                          borderSide: BorderSide(
+                            color: scheme.primary,
                             width: 2,
                           ),
                         ),
@@ -307,22 +341,23 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                     onPressed: _isLoading ? null : _sendMessage,
                     icon: Icon(
                       Icons.send,
-                      color: _isLoading
-                          ? SoloLevelingColors.textTertiary
-                          : SoloLevelingColors.neonBlue,
+                      color: _isLoading ? scheme.outline : scheme.primary,
                     ),
                   ),
                 ],
               ),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildMessageBubble(MessageModel message) {
+  Widget _buildMessageBubble(BuildContext context, MessageModel message) {
     final isSystem = message.isFromSystem;
+    final scheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -338,20 +373,20 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
               height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const RadialGradient(
+                gradient: RadialGradient(
                   colors: [
-                    SoloLevelingColors.neonBlue,
-                    SoloLevelingColors.background,
+                    scheme.primary,
+                    scheme.surface,
                   ],
                 ),
                 border: Border.all(
-                  color: SoloLevelingColors.neonBlue,
+                  color: scheme.primary,
                   width: 2,
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.smart_toy,
-                color: SoloLevelingColors.textPrimary,
+                color: scheme.onSurface,
                 size: 20,
               ),
             ),
@@ -362,13 +397,13 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
               padding: const EdgeInsets.all(12.0),
               decoration: BoxDecoration(
                 color: isSystem
-                    ? SoloLevelingColors.surface
-                    : SoloLevelingColors.neonBlue.withValues(alpha: 0.2),
+                    ? scheme.surfaceContainerHigh
+                    : scheme.primary.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSystem
-                      ? SoloLevelingColors.neonBlue
-                      : SoloLevelingColors.neonBlue.withValues(alpha: 0.5),
+                      ? scheme.primary
+                      : scheme.primary.withValues(alpha: 0.5),
                   width: 1,
                 ),
               ),
@@ -377,16 +412,16 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
                 children: [
                   Text(
                     message.content,
-                    style: TextStyle(
-                      color: SoloLevelingColors.textPrimary,
+                    style: GoogleFonts.manrope(
+                      color: scheme.onSurface,
                       fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _formatTime(message.timestamp),
-                    style: TextStyle(
-                      color: SoloLevelingColors.textTertiary,
+                    style: GoogleFonts.manrope(
+                      color: scheme.outline,
                       fontSize: 10,
                     ),
                   ),
@@ -401,15 +436,15 @@ class _SystemChatPageState extends ConsumerState<SystemChatPage> {
               height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SoloLevelingColors.neonBlue.withValues(alpha: 0.2),
+                color: scheme.primary.withValues(alpha: 0.2),
                 border: Border.all(
-                  color: SoloLevelingColors.neonBlue,
+                  color: scheme.primary,
                   width: 2,
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.person,
-                color: SoloLevelingColors.neonBlue,
+                color: scheme.primary,
                 size: 20,
               ),
             ),

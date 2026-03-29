@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/promo_ui.dart';
-import '../../core/theme.dart';
+import '../../core/system_visuals_extension.dart';
 import '../../core/translations.dart';
 import '../../models/hunter_model.dart';
 import '../../services/providers.dart';
@@ -28,6 +28,7 @@ class SettingsPage extends ConsumerWidget {
     final language = ref.watch(languageProvider);
     final systemId = ref.watch(activeSystemIdProvider);
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -74,8 +75,8 @@ class SettingsPage extends ConsumerWidget {
                               PromoSettingsTile(
                                 icon: Icons.refresh_rounded,
                                 title: t('reset_progress'),
-                                iconColor: SoloLevelingColors.warning,
-                                titleColor: SoloLevelingColors.warning,
+                                iconColor: scheme.tertiary,
+                                titleColor: scheme.tertiary,
                                 onTap: () =>
                                     _showResetProgressDialog(context, ref, t),
                               ),
@@ -122,7 +123,7 @@ class SettingsPage extends ConsumerWidget {
                               icon: Icons.cloud_outlined,
                               title: t('cloud_sync_title'),
                               subtitle: t('cloud_sync_subtitle'),
-                              iconColor: SoloLevelingColors.textSecondary,
+                              iconColor: scheme.onSurfaceVariant,
                               onTap: () {
                                 Navigator.push(
                                   context,
@@ -151,6 +152,80 @@ class SettingsPage extends ConsumerWidget {
                                 ref,
                                 language,
                                 t,
+                              ),
+                            ),
+                            const PromoDivider(),
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 4,
+                              ),
+                              leading: Icon(
+                                Icons.graphic_eq_rounded,
+                                color: scheme.primary,
+                              ),
+                              title: Text(
+                                t('sound_effects_title'),
+                                style: GoogleFonts.manrope(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                              subtitle: Text(
+                                t('sound_effects_subtitle'),
+                                style: GoogleFonts.manrope(
+                                  fontSize: 12,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              trailing: Switch.adaptive(
+                                value: DatabaseService.isSoundEffectsEnabled(),
+                                onChanged: (v) async {
+                                  await DatabaseService.setSoundEffectsEnabled(
+                                    v,
+                                  );
+                                  ref
+                                      .read(
+                                        settingsMetaRefreshProvider.notifier,
+                                      )
+                                      .state++;
+                                },
+                              ),
+                            ),
+                            const PromoDivider(),
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 4,
+                              ),
+                              leading: Icon(
+                                Icons.battery_saver_rounded,
+                                color: scheme.primary,
+                              ),
+                              title: Text(
+                                t('low_fx_mode_title'),
+                                style: GoogleFonts.manrope(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                              subtitle: Text(
+                                t('low_fx_mode_subtitle'),
+                                style: GoogleFonts.manrope(
+                                  fontSize: 12,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              trailing: Switch.adaptive(
+                                value: DatabaseService.isLowFxModeEnabled(),
+                                onChanged: (v) async {
+                                  await DatabaseService.setLowFxModeEnabled(v);
+                                  ref
+                                      .read(
+                                        settingsMetaRefreshProvider.notifier,
+                                      )
+                                      .state++;
+                                },
                               ),
                             ),
                             const PromoDivider(),
@@ -238,7 +313,7 @@ class SettingsPage extends ConsumerWidget {
                               Icon(
                                 Icons.person_off_rounded,
                                 size: 56,
-                                color: SoloLevelingColors.textTertiary,
+                                color: scheme.outline,
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -247,7 +322,7 @@ class SettingsPage extends ConsumerWidget {
                                 style: GoogleFonts.manrope(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
-                                  color: SoloLevelingColors.textPrimary,
+                                  color: scheme.onSurface,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -257,7 +332,7 @@ class SettingsPage extends ConsumerWidget {
                                 style: GoogleFonts.manrope(
                                   fontSize: 14,
                                   height: 1.45,
-                                  color: SoloLevelingColors.textSecondary,
+                                  color: scheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -320,6 +395,7 @@ class SettingsPage extends ConsumerWidget {
     Hunter hunter,
   ) {
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     final dict = ref.watch(activeSystemProvider).dictionary;
     final activeQuests = ref.watch(activeQuestsProvider);
     final completedQuests = ref.watch(completedQuestsProvider);
@@ -337,14 +413,14 @@ class SettingsPage extends ConsumerWidget {
                 dict.levelName,
                 '${hunter.level}',
                 Icons.star,
-                SoloLevelingColors.neonBlue,
+                scheme.primary,
               ),
               _buildStatItem(
                 context,
                 dict.experienceName,
                 '${hunter.currentExp}',
                 Icons.trending_up,
-                SoloLevelingColors.neonGreen,
+                scheme.tertiary,
               ),
             ],
           ),
@@ -357,14 +433,14 @@ class SettingsPage extends ConsumerWidget {
                 t('active_quests'),
                 '${activeQuests.length}',
                 Icons.assignment,
-                SoloLevelingColors.neonPurple,
+                scheme.secondary,
               ),
               _buildStatItem(
                 context,
                 t('completed_quests'),
                 '${completedQuests.length}',
                 Icons.check_circle,
-                SoloLevelingColors.neonGreen,
+                scheme.tertiary,
               ),
             ],
           ),
@@ -377,14 +453,14 @@ class SettingsPage extends ConsumerWidget {
                 t('total_stats'),
                 '${hunter.stats.total}',
                 Icons.fitness_center,
-                SoloLevelingColors.neonPink,
+                scheme.secondary,
               ),
               _buildStatItem(
                 context,
                 t('available_points'),
                 '${hunter.stats.availablePoints}',
                 Icons.add_circle,
-                SoloLevelingColors.warning,
+                scheme.tertiary,
               ),
             ],
           ),
@@ -400,6 +476,7 @@ class SettingsPage extends ConsumerWidget {
     IconData icon,
     Color color,
   ) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Icon(icon, color: color, size: 26),
@@ -415,7 +492,7 @@ class SettingsPage extends ConsumerWidget {
           style: GoogleFonts.manrope(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: SoloLevelingColors.textSecondary,
+            color: scheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -433,51 +510,61 @@ class SettingsPage extends ConsumerWidget {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SoloLevelingColors.surface,
-        title: Text(
-          t('hunter_name_change'),
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-        ),
-        content: TextField(
-          controller: nameController,
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-          decoration: InputDecoration(
-            labelText: t('hunter_name'),
-            labelStyle: const TextStyle(
-              color: SoloLevelingColors.textSecondary,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: SoloLevelingColors.neonBlue),
+      builder: (dialogContext) {
+        final s = Theme.of(dialogContext).colorScheme;
+        final cardR = dialogContext.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
+          ),
+          title: Text(
+            t('hunter_name_change'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(t('cancel')),
+          content: TextField(
+            controller: nameController,
+            style: GoogleFonts.manrope(color: s.onSurface),
+            decoration: InputDecoration(
+              labelText: t('hunter_name'),
+              labelStyle: GoogleFonts.manrope(
+                color: s.onSurfaceVariant,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: s.primary),
+              ),
+            ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isNotEmpty) {
-                final hunter = ref.read(hunterProvider);
-                if (hunter != null) {
-                  await ref
-                      .read(hunterProvider.notifier)
-                      .updateHunter(
-                        hunter.copyWith(name: nameController.text.trim()),
-                      );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(t('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameController.text.trim().isNotEmpty) {
+                  final hunter = ref.read(hunterProvider);
+                  if (hunter != null) {
+                    await ref
+                        .read(hunterProvider.notifier)
+                        .updateHunter(
+                          hunter.copyWith(name: nameController.text.trim()),
+                        );
+                  }
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
                 }
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
-              }
-            },
-            child: Text(t('save')),
-          ),
+              },
+              child: Text(t('save')),
+            ),
         ],
-      ),
+        );
+      },
     );
   }
 
@@ -489,43 +576,54 @@ class SettingsPage extends ConsumerWidget {
   ) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SoloLevelingColors.surface,
-        title: Text(
-          t('reset_progress_title'),
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-        ),
-        content: Text(
-          t('reset_progress_message'),
-          style: const TextStyle(color: SoloLevelingColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(t('cancel')),
+      builder: (dialogContext) {
+        final s = Theme.of(dialogContext).colorScheme;
+        final cardR = dialogContext.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              await ref.read(hunterProvider.notifier).resetHunter();
-              await ref.read(questsProvider.notifier).deleteAllQuests();
-
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(t('progress_reset')),
-                    backgroundColor: SoloLevelingColors.neonBlue,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: SoloLevelingColors.error,
+          title: Text(
+            t('reset_progress_title'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
             ),
-            child: Text(t('reset')),
           ),
-        ],
-      ),
+          content: Text(
+            t('reset_progress_message'),
+            style: GoogleFonts.manrope(color: s.onSurfaceVariant),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(t('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await ref.read(hunterProvider.notifier).resetHunter();
+                await ref.read(questsProvider.notifier).deleteAllQuests();
+
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(t('progress_reset')),
+                      backgroundColor: s.primary,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: s.error,
+                foregroundColor: s.onError,
+              ),
+              child: Text(t('reset')),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -538,70 +636,80 @@ class SettingsPage extends ConsumerWidget {
   ) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SoloLevelingColors.surface,
-        title: Text(
-          t('select_language'),
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                currentLanguage == 'ru'
-                    ? Icons.check_circle
-                    : Icons.circle_outlined,
-                color: currentLanguage == 'ru'
-                    ? SoloLevelingColors.neonBlue
-                    : SoloLevelingColors.textTertiary,
-              ),
-              title: Text(
-                t('russian'),
-                style: const TextStyle(color: SoloLevelingColors.textPrimary),
-              ),
-              onTap: () async {
-                await ref.read(languageProvider.notifier).setLanguage('ru');
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(t('language_changed')),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
+      builder: (dialogContext) {
+        final s = Theme.of(dialogContext).colorScheme;
+        final cardR = dialogContext.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
+          ),
+          title: Text(
+            t('select_language'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
             ),
-            ListTile(
-              leading: Icon(
-                currentLanguage == 'en'
-                    ? Icons.check_circle
-                    : Icons.circle_outlined,
-                color: currentLanguage == 'en'
-                    ? SoloLevelingColors.neonBlue
-                    : SoloLevelingColors.textTertiary,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  currentLanguage == 'ru'
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                  color: currentLanguage == 'ru'
+                      ? s.primary
+                      : s.outline,
+                ),
+                title: Text(
+                  t('russian'),
+                  style: GoogleFonts.manrope(color: s.onSurface),
+                ),
+                onTap: () async {
+                  await ref.read(languageProvider.notifier).setLanguage('ru');
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(t('language_changed')),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
               ),
-              title: Text(
-                t('english'),
-                style: const TextStyle(color: SoloLevelingColors.textPrimary),
+              ListTile(
+                leading: Icon(
+                  currentLanguage == 'en'
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                  color: currentLanguage == 'en'
+                      ? s.primary
+                      : s.outline,
+                ),
+                title: Text(
+                  t('english'),
+                  style: GoogleFonts.manrope(color: s.onSurface),
+                ),
+                onTap: () async {
+                  await ref.read(languageProvider.notifier).setLanguage('en');
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(t('language_changed')),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
               ),
-              onTap: () async {
-                await ref.read(languageProvider.notifier).setLanguage('en');
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(t('language_changed')),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -627,60 +735,70 @@ class SettingsPage extends ConsumerWidget {
 
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SoloLevelingColors.surface,
-        title: Text(
-          t('tag_stats_title'),
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: entries.isEmpty
-              ? Text(
-                  t('tag_stats_empty'),
-                  style: const TextStyle(
-                    color: SoloLevelingColors.textSecondary,
-                  ),
-                )
-              : SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: entries.map((e) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                e.key,
-                                style: const TextStyle(
-                                  color: SoloLevelingColors.textPrimary,
-                                  fontWeight: FontWeight.w500,
+      builder: (ctx) {
+        final s = Theme.of(ctx).colorScheme;
+        final cardR = ctx.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
+          ),
+          title: Text(
+            t('tag_stats_title'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: entries.isEmpty
+                ? Text(
+                    t('tag_stats_empty'),
+                    style: GoogleFonts.manrope(
+                      color: s.onSurfaceVariant,
+                    ),
+                  )
+                : SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: entries.map((e) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  e.key,
+                                  style: GoogleFonts.manrope(
+                                    color: s.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              '${e.value}',
-                              style: const TextStyle(
-                                color: SoloLevelingColors.neonBlue,
-                                fontWeight: FontWeight.bold,
+                              Text(
+                                '${e.value}',
+                                style: GoogleFonts.manrope(
+                                  color: s.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(t('close')),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t('close')),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -692,13 +810,21 @@ class SettingsPage extends ConsumerWidget {
     var selected = ref.read(themeSkinIdProvider);
     showDialog<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (outerCtx) => StatefulBuilder(
         builder: (ctx, setLocal) {
+          final s = Theme.of(ctx).colorScheme;
+          final cardR = ctx.worldCardRadius;
           return AlertDialog(
-            backgroundColor: SoloLevelingColors.surface,
+            backgroundColor: s.surfaceContainerHigh,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(cardR),
+            ),
             title: Text(
               t('theme_skin'),
-              style: const TextStyle(color: SoloLevelingColors.textPrimary),
+              style: GoogleFonts.manrope(
+                color: s.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -707,14 +833,12 @@ class SettingsPage extends ConsumerWidget {
                 return ListTile(
                   leading: Icon(
                     isOn ? Icons.check_circle : Icons.circle_outlined,
-                    color: isOn
-                        ? SoloLevelingColors.neonBlue
-                        : SoloLevelingColors.textTertiary,
+                    color: isOn ? s.primary : s.outline,
                   ),
                   title: Text(
                     t('theme_skin_$id'),
-                    style: const TextStyle(
-                      color: SoloLevelingColors.textPrimary,
+                    style: GoogleFonts.manrope(
+                      color: s.onSurface,
                     ),
                   ),
                   onTap: () async {
@@ -743,84 +867,94 @@ class SettingsPage extends ConsumerWidget {
     final cVit = TextEditingController(text: o['vitality'] ?? '');
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SoloLevelingColors.surface,
-        title: Text(
-          t('stat_labels_custom'),
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: cStrength,
-                style: const TextStyle(color: SoloLevelingColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: '${t('strength')} →',
-                  labelStyle: const TextStyle(
-                    color: SoloLevelingColors.textSecondary,
-                  ),
-                ),
-              ),
-              TextField(
-                controller: cAgility,
-                style: const TextStyle(color: SoloLevelingColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: '${t('agility')} →',
-                  labelStyle: const TextStyle(
-                    color: SoloLevelingColors.textSecondary,
-                  ),
-                ),
-              ),
-              TextField(
-                controller: cInt,
-                style: const TextStyle(color: SoloLevelingColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: '${t('intelligence')} →',
-                  labelStyle: const TextStyle(
-                    color: SoloLevelingColors.textSecondary,
-                  ),
-                ),
-              ),
-              TextField(
-                controller: cVit,
-                style: const TextStyle(color: SoloLevelingColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: '${t('vitality')} →',
-                  labelStyle: const TextStyle(
-                    color: SoloLevelingColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
+      builder: (ctx) {
+        final s = Theme.of(ctx).colorScheme;
+        final cardR = ctx.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(t('cancel')),
+          title: Text(
+            t('stat_labels_custom'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final m = <String, String>{};
-              void put(String key, String v) {
-                final s = v.trim();
-                if (s.isNotEmpty) m[key] = s;
-              }
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: cStrength,
+                  style: GoogleFonts.manrope(color: s.onSurface),
+                  decoration: InputDecoration(
+                    labelText: '${t('strength')} →',
+                    labelStyle: GoogleFonts.manrope(
+                      color: s.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                TextField(
+                  controller: cAgility,
+                  style: GoogleFonts.manrope(color: s.onSurface),
+                  decoration: InputDecoration(
+                    labelText: '${t('agility')} →',
+                    labelStyle: GoogleFonts.manrope(
+                      color: s.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                TextField(
+                  controller: cInt,
+                  style: GoogleFonts.manrope(color: s.onSurface),
+                  decoration: InputDecoration(
+                    labelText: '${t('intelligence')} →',
+                    labelStyle: GoogleFonts.manrope(
+                      color: s.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                TextField(
+                  controller: cVit,
+                  style: GoogleFonts.manrope(color: s.onSurface),
+                  decoration: InputDecoration(
+                    labelText: '${t('vitality')} →',
+                    labelStyle: GoogleFonts.manrope(
+                      color: s.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final m = <String, String>{};
+                void put(String key, String v) {
+                  final trimmed = v.trim();
+                  if (trimmed.isNotEmpty) m[key] = trimmed;
+                }
 
-              put('strength', cStrength.text);
-              put('agility', cAgility.text);
-              put('intelligence', cInt.text);
-              put('vitality', cVit.text);
-              await DatabaseService.setStatLabelOverrides(m);
-              ref.read(settingsMetaRefreshProvider.notifier).state++;
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: Text(t('save')),
-          ),
-        ],
-      ),
+                put('strength', cStrength.text);
+                put('agility', cAgility.text);
+                put('intelligence', cInt.text);
+                put('vitality', cVit.text);
+                await DatabaseService.setStatLabelOverrides(m);
+                ref.read(settingsMetaRefreshProvider.notifier).state++;
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Text(t('save')),
+            ),
+          ],
+        );
+      },
     ).then((_) {
       cStrength.dispose();
       cAgility.dispose();
@@ -836,43 +970,53 @@ class SettingsPage extends ConsumerWidget {
     final jsonStr = DatabaseService.exportGameBackupJson();
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SoloLevelingColors.surface,
-        title: Text(
-          t('export_backup'),
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: SelectableText(
-              jsonStr,
-              style: const TextStyle(
-                color: SoloLevelingColors.textSecondary,
-                fontSize: 12,
+      builder: (ctx) {
+        final s = Theme.of(ctx).colorScheme;
+        final cardR = ctx.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
+          ),
+          title: Text(
+            t('export_backup'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                jsonStr,
+                style: GoogleFonts.manrope(
+                  color: s.onSurfaceVariant,
+                  fontSize: 12,
+                ),
               ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(t('close')),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: jsonStr));
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(t('backup_copied'))));
-              }
-            },
-            child: Text(t('copy')),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t('close')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: jsonStr));
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(t('backup_copied'))));
+                }
+              },
+              child: Text(t('copy')),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -884,58 +1028,68 @@ class SettingsPage extends ConsumerWidget {
     final c = TextEditingController();
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SoloLevelingColors.surface,
-        title: Text(
-          t('import_backup'),
-          style: const TextStyle(color: SoloLevelingColors.textPrimary),
-        ),
-        content: TextField(
-          controller: c,
-          maxLines: 8,
-          style: const TextStyle(
-            color: SoloLevelingColors.textPrimary,
-            fontSize: 12,
+      builder: (ctx) {
+        final s = Theme.of(ctx).colorScheme;
+        final cardR = ctx.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
           ),
-          decoration: InputDecoration(
-            hintText: t('paste_backup_json'),
-            hintStyle: const TextStyle(color: SoloLevelingColors.textTertiary),
+          title: Text(
+            t('import_backup'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(t('cancel')),
+          content: TextField(
+            controller: c,
+            maxLines: 8,
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontSize: 12,
+            ),
+            decoration: InputDecoration(
+              hintText: t('paste_backup_json'),
+              hintStyle: GoogleFonts.manrope(color: s.outline),
+            ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await DatabaseService.importGameBackupJson(c.text);
-                ref.read(hunterProvider.notifier).refresh();
-                ref.read(questsProvider.notifier).refresh();
-                ref.read(themeSkinIdProvider.notifier).reloadFromDb();
-                ref.read(settingsMetaRefreshProvider.notifier).state++;
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(t('import_done'))));
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await DatabaseService.importGameBackupJson(c.text);
+                  ref.read(hunterProvider.notifier).refresh();
+                  ref.read(questsProvider.notifier).refresh();
+                  ref.read(themeSkinIdProvider.notifier).reloadFromDb();
+                  ref.read(settingsMetaRefreshProvider.notifier).state++;
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(t('import_done'))));
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${t('error')}: $e'),
+                        backgroundColor: s.error,
+                      ),
+                    );
+                  }
                 }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${t('error')}: $e'),
-                      backgroundColor: SoloLevelingColors.error,
-                    ),
-                  );
-                }
-              }
-            },
-            child: Text(t('import_action')),
-          ),
-        ],
-      ),
+              },
+              child: Text(t('import_action')),
+            ),
+          ],
+        );
+      },
     ).then((_) {
       c.dispose();
     });
@@ -1001,6 +1155,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
   @override
   Widget build(BuildContext context) {
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     final currentProvider = ref.watch(aiProviderProvider);
     final currentModel = ref.watch(aiModelProvider);
     final currentKey = ref.watch(aiApiKeyProvider(currentProvider));
@@ -1032,7 +1187,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 2,
-              color: SoloLevelingColors.textSecondary,
+              color: scheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 14),
@@ -1059,14 +1214,14 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
                     ref.read(aiApiKeyProvider(provider).notifier).refresh();
                   }
                 },
-                selectedColor: SoloLevelingColors.neonBlue.withValues(
+                selectedColor: scheme.primary.withValues(
                   alpha: 0.3,
                 ),
-                checkmarkColor: SoloLevelingColors.neonBlue,
+                checkmarkColor: scheme.primary,
                 side: BorderSide(
                   color: isSelected
-                      ? SoloLevelingColors.neonBlue
-                      : SoloLevelingColors.textTertiary,
+                      ? scheme.primary
+                      : scheme.outline,
                 ),
               );
             }).toList(),
@@ -1078,7 +1233,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 2,
-              color: SoloLevelingColors.textSecondary,
+              color: scheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 10),
@@ -1086,12 +1241,12 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
             controller: _modelCtrl,
             focusNode: _modelFocus,
             style: GoogleFonts.manrope(
-              color: SoloLevelingColors.textPrimary,
+              color: scheme.onSurface,
               fontSize: 15,
             ),
             decoration: promoInputDecoration(
               hintText: t('enter_model_name'),
-              borderAccent: SoloLevelingColors.neonBlue,
+              borderAccent: scheme.primary,
               suffixIcon: models.isNotEmpty
                   ? PopupMenuButton<String>(
                       icon: const Icon(Icons.arrow_drop_down),
@@ -1126,7 +1281,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
               t('or_select_from_list'),
               style: GoogleFonts.manrope(
                 fontSize: 12,
-                color: SoloLevelingColors.textTertiary,
+                color: scheme.outline,
               ),
             ),
             const SizedBox(height: 4),
@@ -1142,8 +1297,8 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: isSelected
-                          ? SoloLevelingColors.neonBlue
-                          : SoloLevelingColors.textSecondary,
+                          ? scheme.primary
+                          : scheme.onSurfaceVariant,
                     ),
                   ),
                   onPressed: () async {
@@ -1151,12 +1306,12 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
                     await ref.read(aiModelProvider.notifier).setModel(model);
                   },
                   backgroundColor: isSelected
-                      ? SoloLevelingColors.neonBlue.withValues(alpha: 0.2)
-                      : SoloLevelingColors.surfaceLight,
+                      ? scheme.primary.withValues(alpha: 0.2)
+                      : scheme.surfaceContainerHighest,
                   side: BorderSide(
                     color: isSelected
-                        ? SoloLevelingColors.neonBlue
-                        : SoloLevelingColors.textTertiary,
+                        ? scheme.primary
+                        : scheme.outline,
                   ),
                 );
               }).toList(),
@@ -1169,7 +1324,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 2,
-              color: SoloLevelingColors.textSecondary,
+              color: scheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 10),
@@ -1177,9 +1332,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
             children: [
               Icon(
                 hasKey ? Icons.key_rounded : Icons.key_off_rounded,
-                color: hasKey
-                    ? SoloLevelingColors.neonGreen
-                    : SoloLevelingColors.warning,
+                color: hasKey ? scheme.tertiary : scheme.outline,
                 size: 22,
               ),
               const SizedBox(width: 10),
@@ -1190,8 +1343,8 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: hasKey
-                        ? SoloLevelingColors.neonGreen
-                        : SoloLevelingColors.textSecondary,
+                        ? scheme.tertiary
+                        : scheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -1202,14 +1355,14 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
             controller: _keyCtrl,
             focusNode: _keyFocus,
             style: GoogleFonts.manrope(
-              color: SoloLevelingColors.textPrimary,
+              color: scheme.onSurface,
               fontSize: 15,
             ),
             decoration: promoInputDecoration(
               hintText: _apiKeyHint(currentProvider),
               borderAccent: hasKey
-                  ? SoloLevelingColors.neonGreen
-                  : SoloLevelingColors.neonBlue,
+                  ? scheme.tertiary
+                  : scheme.primary,
               suffixIcon: currentKey.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),

@@ -1,15 +1,24 @@
 class OnboardingPersona {
   const OnboardingPersona({
+    required this.name,
+    required this.strengths,
+    required this.weaknesses,
     required this.selfRole,
     required this.interests,
     required this.goal,
   });
 
+  final String name;
+  final String strengths;
+  final String weaknesses;
   final String selfRole;
   final List<String> interests;
   final String goal;
 
   Map<String, dynamic> toMap() => {
+        'name': name,
+        'strengths': strengths,
+        'weaknesses': weaknesses,
         'selfRole': selfRole,
         'interests': interests,
         'goal': goal,
@@ -18,14 +27,31 @@ class OnboardingPersona {
   static OnboardingPersona? fromMap(dynamic raw) {
     if (raw is! Map) return null;
     final m = Map<String, dynamic>.from(raw);
+    final name = (m['name'] as String?)?.trim() ?? '';
+    final strengths = (m['strengths'] as String?)?.trim() ?? '';
+    final weaknesses = (m['weaknesses'] as String?)?.trim() ?? '';
     final selfRole = (m['selfRole'] as String?)?.trim() ?? '';
     final goal = (m['goal'] as String?)?.trim() ?? '';
     final interestsRaw = m['interests'];
     final interests = interestsRaw is List
         ? interestsRaw.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
         : <String>[];
-    if (selfRole.isEmpty && goal.isEmpty && interests.isEmpty) return null;
-    return OnboardingPersona(selfRole: selfRole, interests: interests, goal: goal);
+    if (name.isEmpty &&
+        strengths.isEmpty &&
+        weaknesses.isEmpty &&
+        selfRole.isEmpty &&
+        goal.isEmpty &&
+        interests.isEmpty) {
+      return null;
+    }
+    return OnboardingPersona(
+      name: name,
+      strengths: strengths,
+      weaknesses: weaknesses,
+      selfRole: selfRole.isNotEmpty ? selfRole : name,
+      interests: interests,
+      goal: goal,
+    );
   }
 }
 

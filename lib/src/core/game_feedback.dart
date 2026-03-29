@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 
-/// Локальная обратная связь без внешних аудио-ассетов (соответствует фазе 5 плана).
+import '../services/sound_service.dart';
+
+/// Локальная обратная связь: тактильно всегда (если поддерживается), звук — по настройке SFX.
 class GameFeedback {
   GameFeedback._();
 
@@ -10,29 +14,31 @@ class GameFeedback {
     for (var i = 0; i < n; i++) {
       HapticFeedback.heavyImpact();
     }
-    SystemSound.play(SystemSoundType.alert);
+    unawaited(SoundService.playLevelUp());
   }
 
   /// Дроп золота или предмета после квеста.
   static void onLootDrop() {
     HapticFeedback.mediumImpact();
-    SystemSound.play(SystemSoundType.click);
+    unawaited(SoundService.playClick());
   }
 
   /// Квест завершён, но отдельного дропа нет.
   static void onQuestComplete() {
     HapticFeedback.mediumImpact();
+    unawaited(SoundService.playQuestComplete());
   }
 
   /// Провал квеста (в т.ч. со штрафами).
   static void onQuestFail() {
     HapticFeedback.heavyImpact();
+    unawaited(SoundService.playQuestFail());
   }
 
   /// Покупка в магазине.
   static void onPurchase() {
     HapticFeedback.selectionClick();
-    SystemSound.play(SystemSoundType.click);
+    unawaited(SoundService.playClick());
   }
 
   /// Продажа предмета.
@@ -52,7 +58,7 @@ class GameFeedback {
   /// Использование расходника.
   static void onConsumable() {
     HapticFeedback.mediumImpact();
-    SystemSound.play(SystemSoundType.click);
+    unawaited(SoundService.playClick());
   }
 
   /// Активация активного навыка (успешно).
@@ -63,5 +69,11 @@ class GameFeedback {
   /// Изучение навыка или улучшение за SP.
   static void onSkillProgress() {
     HapticFeedback.selectionClick();
+  }
+
+  /// Разблокировка класса или титула.
+  static void onUnlock() {
+    HapticFeedback.heavyImpact();
+    unawaited(SoundService.playAlert());
   }
 }

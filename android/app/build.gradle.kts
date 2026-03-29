@@ -27,10 +27,16 @@ android {
         applicationId = "com.levelup.levelup"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Плагин `health` требует minSdk 26.
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Стабилизация CMake на Windows: собираем только arm64 (устройство arm64).
+        ndk {
+            abiFilters += setOf("arm64-v8a")
+        }
     }
 
     buildTypes {

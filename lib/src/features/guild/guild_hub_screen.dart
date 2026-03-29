@@ -4,11 +4,15 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/promo_ui.dart';
 import '../../core/progression_gates.dart';
-import '../../core/theme.dart';
+import '../../core/system_visuals_extension.dart';
+import '../../core/widgets/world_surface_panel.dart';
 import '../../core/translations.dart';
 import '../../core/systems/system_id.dart';
 import '../../services/database_service.dart';
 import '../../services/providers.dart';
+import 'blood_contracts_screen.dart';
+import 'guild_focus_raid_screen.dart';
+import 'world_gates_screen.dart';
 import '../social/hall_of_fame_screen.dart';
 import '../social/leaderboards_screen.dart';
 
@@ -65,39 +69,46 @@ class GuildHubScreen extends ConsumerWidget {
     final c = TextEditingController(text: DatabaseService.getGuildName() ?? '');
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text(
-          t('guild_name'),
-          style: GoogleFonts.manrope(
-            color: SoloLevelingColors.textPrimary,
-            fontWeight: FontWeight.w800,
+      builder: (ctx) {
+        final s = Theme.of(ctx).colorScheme;
+        final cardR = ctx.worldCardRadius;
+        return AlertDialog(
+          backgroundColor: s.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardR),
           ),
-        ),
-        content: TextField(
-          controller: c,
-          style: GoogleFonts.manrope(color: SoloLevelingColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: t('guild_name_hint'),
-            hintStyle: GoogleFonts.manrope(color: SoloLevelingColors.textTertiary),
+          title: Text(
+            t('guild_name'),
+            style: GoogleFonts.manrope(
+              color: s.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(t('cancel')),
+          content: TextField(
+            controller: c,
+            style: GoogleFonts.manrope(color: s.onSurface),
+            decoration: InputDecoration(
+              hintText: t('guild_name_hint'),
+              hintStyle: GoogleFonts.manrope(color: s.outline),
+            ),
           ),
-          FilledButton(
-            onPressed: () async {
-              final name = c.text.trim();
-              await DatabaseService.setGuildName(name.isEmpty ? null : name);
-              ref.read(settingsMetaRefreshProvider.notifier).state++;
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: Text(t('save')),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t('cancel')),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final name = c.text.trim();
+                await DatabaseService.setGuildName(name.isEmpty ? null : name);
+                ref.read(settingsMetaRefreshProvider.notifier).state++;
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Text(t('save')),
+            ),
+          ],
+        );
+      },
     );
     c.dispose();
   }
@@ -106,9 +117,11 @@ class GuildHubScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(settingsMetaRefreshProvider);
     final t = useTranslations(ref);
+    final scheme = Theme.of(context).colorScheme;
     final hunter = ref.watch(hunterProvider);
     final systemId = ref.watch(activeSystemIdProvider);
     final guildName = (DatabaseService.getGuildName() ?? '').trim();
+    final guildVisuals = context.systemVisuals;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -136,10 +149,15 @@ class GuildHubScreen extends ConsumerWidget {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 28),
+                  child: WorldSurfacePanel(
+                    visuals: guildVisuals,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 4, 10, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                       ProfileNeonCard(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -171,7 +189,7 @@ class GuildHubScreen extends ConsumerWidget {
                                   child: Text(
                                     guildName.isEmpty ? t('guild_none') : guildName,
                                     style: GoogleFonts.manrope(
-                                      color: SoloLevelingColors.textPrimary,
+                                      color: scheme.onSurface,
                                       fontSize: 16,
                                       fontWeight: FontWeight.w900,
                                     ),
@@ -190,7 +208,7 @@ class GuildHubScreen extends ConsumerWidget {
                             Text(
                               t('guild_hub_subtitle'),
                               style: GoogleFonts.manrope(
-                                color: SoloLevelingColors.textSecondary,
+                                color: scheme.onSurfaceVariant,
                                 height: 1.35,
                                 fontSize: 12,
                               ),
@@ -229,6 +247,46 @@ class GuildHubScreen extends ConsumerWidget {
                             ),
                             const PromoDivider(),
                             PromoSettingsTile(
+                              icon: Icons.public_rounded,
+                              title: t('world_gates_title'),
+                              subtitle: t('world_gates_tile_subtitle'),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const WorldGatesScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const PromoDivider(),
+                            PromoSettingsTile(
+                              icon: Icons.timer_rounded,
+                              title: t('guild_focus_raid_title'),
+                              subtitle: t('guild_focus_raid_tile_subtitle'),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const GuildFocusRaidScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const PromoDivider(),
+                            PromoSettingsTile(
+                              icon: Icons.handshake_rounded,
+                              title: t('blood_contracts_title'),
+                              subtitle: t('blood_contracts_tile_subtitle'),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const BloodContractsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const PromoDivider(),
+                            PromoSettingsTile(
                               icon: Icons.search_rounded,
                               title: t('hall_of_fame_title'),
                               subtitle: t('hall_of_fame_subtitle'),
@@ -246,7 +304,7 @@ class GuildHubScreen extends ConsumerWidget {
                               child: Text(
                                 t('guild_hub_stub'),
                                 style: GoogleFonts.manrope(
-                                  color: SoloLevelingColors.textTertiary,
+                                  color: scheme.outline,
                                   fontSize: 12,
                                   height: 1.35,
                                 ),
@@ -264,7 +322,7 @@ class GuildHubScreen extends ConsumerWidget {
                             Text(
                               t('guild_hub_next_title'),
                               style: GoogleFonts.manrope(
-                                color: SoloLevelingColors.textPrimary,
+                                color: scheme.onSurface,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -272,14 +330,16 @@ class GuildHubScreen extends ConsumerWidget {
                             Text(
                               t('guild_hub_next_body'),
                               style: GoogleFonts.manrope(
-                                color: SoloLevelingColors.textSecondary,
+                                color: scheme.onSurfaceVariant,
                                 height: 1.35,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),

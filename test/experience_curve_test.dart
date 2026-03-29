@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:expense_tracker_flutter/src/core/experience_curve.dart';
+import 'package:level_up/src/core/experience_curve.dart';
 
 void main() {
   group('ExperienceCurve', () {

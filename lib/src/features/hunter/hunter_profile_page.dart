@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/system_visuals_extension.dart';
 import '../../core/theme.dart';
 import '../../core/translations.dart';
+import '../../core/widgets/world_material_chrome.dart';
+import '../../core/widgets/world_surface_panel.dart';
 import '../../core/hunter_display.dart';
 import '../../core/monarch_mode.dart';
 import '../../models/hunter_model.dart';
@@ -11,9 +14,13 @@ import '../../models/achievement_model.dart';
 import '../../core/systems/system_dictionary.dart';
 import '../../services/providers.dart';
 import '../../services/database_service.dart';
+import '../../services/health/vessel_health_service.dart';
+import '../../data/titles_data.dart';
 import '../shop/shop_screen.dart';
+import '../quests/widgets/world_journal_sheet.dart';
 import 'widgets/profile_analytics_section.dart';
 import '../../core/promo_ui.dart';
+import 'titles_page.dart';
 
 /// Локализованные строки с опциональными подстановками `{key}`.
 typedef AppTr = String Function(String key, {Map<String, String>? params});
@@ -27,7 +34,79 @@ class HunterProfilePage extends ConsumerStatefulWidget {
 
 class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
   final TextEditingController _nameController = TextEditingController();
+  final VesselHealthService _healthService = VesselHealthService();
+  int _todaySteps = 0;
+  bool _healthEnabled = false;
   // Кинематографичный онбординг (Фаза 7.5) запускается глобально из `HomeShell`.
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHealthData();
+  }
+
+  Future<void> _loadHealthData() async {
+    final granted = await _healthService.requestPermissions();
+    if (granted) {
+      final steps = await _healthService.getStepsToday();
+      if (mounted) {
+        setState(() {
+          _healthEnabled = true;
+          _todaySteps = steps;
+        });
+
+        // Авто-награда за шаги (Vessel Health Фаза 9.3)
+        // Каждые 3000 шагов дают +1 Живучести и опыт, если цель (10000) выполнена
+        _checkStepRewards(steps);
+      }
+    }
+  }
+
+  Future<void> _checkStepRewards(int steps) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+
+    final lastRewardDate = prefs.getString('last_step_reward_date');
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+
+    if (lastRewardDate == todayStr) return; // Уже получали награду сегодня
+
+    if (steps >= 10000) {
+      await prefs.setString('last_step_reward_date', todayStr);
+
+      final hunter = ref.read(hunterProvider);
+      if (hunter != null) {
+        // Начисляем опыт (динамически от уровня)
+        final expReward = (hunter.level * 5).clamp(20, 200);
+        await ref.read(hunterProvider.notifier).addExperience(expReward);
+
+        if (mounted) {
+          final t = useTranslations(ref);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t('vessel_steps_reward_title'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    t(
+                      'vessel_steps_reward_body',
+                      params: {'exp': '$expReward'},
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: SoloLevelingColors.neonGreen,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -46,6 +125,21 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
     if (hunter == null) {
       return _buildCreateHunterScreen(context, ref);
     }
+
+    final profileVisuals = Theme.of(context).extension<SystemVisuals>() ??
+        const SystemVisuals(
+          backgroundKind: SystemBackgroundKind.grid,
+          backgroundAssetPath: '',
+          particlesKind: SystemParticlesKind.none,
+          panelRadius: 12,
+          panelBorderWidth: 1,
+          panelBlur: 0,
+          titleLetterSpacing: 2.2,
+          surfaceKind: SystemSurfaceKind.digital,
+          glowIntensity: 0.35,
+          borderRadiusScale: 1.0,
+          shadowProfile: SystemShadowProfile.soft,
+        );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -69,6 +163,11 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                 centerTitle: true,
                 actions: [
                   IconButton(
+                    icon: const Icon(Icons.menu_book_outlined),
+                    onPressed: () => showWorldJournalSheet(context, ref),
+                    tooltip: t('world_journal_title'),
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.shopping_cart_outlined),
                     onPressed: () {
                       Navigator.of(context).push(
@@ -83,10 +182,15 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 28),
+                  child: WorldSurfacePanel(
+                    visuals: profileVisuals,
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 4, 10, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                       _buildLevelCard(context, hunter, t, dict),
                       if (hunter.activeBuffs.any(
                         (b) => b.effectId == 'penalty_zone' && !b.isExpired,
@@ -125,8 +229,9 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                             children: [
                               Icon(
                                 Icons.nightlight_round,
-                                color: SoloLevelingColors.error
-                                    .withValues(alpha: 0.95),
+                                color: SoloLevelingColors.error.withValues(
+                                  alpha: 0.95,
+                                ),
                                 size: 26,
                               ),
                               const SizedBox(width: 12),
@@ -154,8 +259,9 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                             children: [
                               Icon(
                                 Icons.whatshot_rounded,
-                                color: SoloLevelingColors.neonPurple
-                                    .withValues(alpha: 0.95),
+                                color: SoloLevelingColors.neonPurple.withValues(
+                                  alpha: 0.95,
+                                ),
                                 size: 26,
                               ),
                               const SizedBox(width: 12),
@@ -179,6 +285,8 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                       const SizedBox(height: 10),
                       _buildStatsPanel(context, hunter, t),
                       const SizedBox(height: 28),
+                      _buildVesselHealthSection(context, t),
+                      const SizedBox(height: 28),
                       ProfileAnalyticsSection(hunter: hunter),
                       const SizedBox(height: 28),
                       _buildAchievementsSection(context, ref, t),
@@ -186,7 +294,9 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                       profileSectionTitle(context, t('info')),
                       const SizedBox(height: 10),
                       _buildInfoCard(context, hunter, t),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -221,52 +331,51 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        ProfilePillBadge(
-                          label: t('profile_onboarding_badge'),
-                        ),
+                        ProfilePillBadge(label: t('profile_onboarding_badge')),
                         const SizedBox(height: 28),
                         Container(
-                            width: 96,
-                            height: 96,
+                          width: 96,
+                          height: 96,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: SoloLevelingColors.neonBlue.withValues(
+                                  alpha: 0.35,
+                                ),
+                                blurRadius: 28,
+                              ),
+                              BoxShadow(
+                                color: SoloLevelingColors.neonPurple.withValues(
+                                  alpha: 0.25,
+                                ),
+                                blurRadius: 36,
+                                spreadRadius: -4,
+                              ),
+                            ],
+                          ),
+                          child: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: SoloLevelingColors.neonBlue.withValues(
+                              border: Border.all(
+                                color: SoloLevelingColors.neonBlue,
+                                width: 2,
+                              ),
+                              gradient: RadialGradient(
+                                colors: [
+                                  SoloLevelingColors.neonPurple.withValues(
                                     alpha: 0.35,
                                   ),
-                                  blurRadius: 28,
-                                ),
-                                BoxShadow(
-                                  color: SoloLevelingColors.neonPurple
-                                      .withValues(alpha: 0.25),
-                                  blurRadius: 36,
-                                  spreadRadius: -4,
-                                ),
-                              ],
-                            ),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: SoloLevelingColors.neonBlue,
-                                  width: 2,
-                                ),
-                                gradient: RadialGradient(
-                                  colors: [
-                                    SoloLevelingColors.neonPurple.withValues(
-                                      alpha: 0.35,
-                                    ),
-                                    SoloLevelingColors.background,
-                                  ],
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.person_add_rounded,
-                                size: 44,
-                                color: SoloLevelingColors.neonBlue,
+                                  SoloLevelingColors.background,
+                                ],
                               ),
                             ),
+                            child: const Icon(
+                              Icons.person_add_rounded,
+                              size: 44,
+                              color: SoloLevelingColors.neonBlue,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 28),
                         Text(
@@ -314,8 +423,9 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
                                 borderSide: BorderSide(
-                                  color: SoloLevelingColors.neonBlue
-                                      .withValues(alpha: 0.35),
+                                  color: SoloLevelingColors.neonBlue.withValues(
+                                    alpha: 0.35,
+                                  ),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -345,58 +455,56 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                                onPressed: () async {
-                                  if (_nameController.text.trim().isNotEmpty) {
-                                    try {
-                                      await ref
-                                          .read(hunterProvider.notifier)
-                                          .createHunter(
-                                            _nameController.text.trim(),
-                                          );
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        final t = useTranslations(ref);
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              '${t('hunter_creation_error')}: $e',
-                                            ),
-                                            backgroundColor:
-                                                SoloLevelingColors.error,
-                                          ),
+                              onPressed: () async {
+                                if (_nameController.text.trim().isNotEmpty) {
+                                  try {
+                                    await ref
+                                        .read(hunterProvider.notifier)
+                                        .createHunter(
+                                          _nameController.text.trim(),
                                         );
-                                      }
-                                    }
-                                  } else {
+                                  } catch (e) {
                                     if (context.mounted) {
                                       final t = useTranslations(ref);
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
                                         SnackBar(
-                                          content: Text(t('enter_hunter_name')),
+                                          content: Text(
+                                            '${t('hunter_creation_error')}: $e',
+                                          ),
                                           backgroundColor:
-                                              SoloLevelingColors.warning,
+                                              SoloLevelingColors.error,
                                         ),
                                       );
                                     }
                                   }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  textStyle: GoogleFonts.manrope(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2,
-                                  ),
+                                } else {
+                                  if (context.mounted) {
+                                    final t = useTranslations(ref);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(t('enter_hunter_name')),
+                                        backgroundColor:
+                                            SoloLevelingColors.warning,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
                                 ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                textStyle: GoogleFonts.manrope(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
                               child: Text(t('start_journey').toUpperCase()),
                             ),
                           ),
@@ -462,7 +570,20 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
     SystemDictionary dict,
   ) {
     final rank = hunterRankCode(hunter.level);
-    final titleKey = hunterTitleKeyForRank(rank);
+
+    // Получаем экипированный титул, если есть, иначе дефолтный по рангу
+    String displayTitle = '';
+    if (hunter.equippedTitleId != null) {
+      final equipped = getTitleById(hunter.equippedTitleId!);
+      if (equipped != null) {
+        displayTitle = equipped.name;
+      }
+    }
+    if (displayTitle.isEmpty) {
+      final titleKey = hunterTitleKeyForRank(rank);
+      displayTitle = t(titleKey);
+    }
+
     final monoNum = GoogleFonts.rajdhani(
       fontWeight: FontWeight.w800,
       color: SoloLevelingColors.textPrimary,
@@ -550,13 +671,35 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '${t('hunter_title_short')}: ${t(titleKey)}',
-                      style: GoogleFonts.manrope(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: SoloLevelingColors.textSecondary,
-                        height: 1.35,
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const TitlesPage()),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${t('hunter_title_short')}: $displayTitle',
+                              style: GoogleFonts.manrope(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: SoloLevelingColors.textSecondary,
+                                height: 1.35,
+                                decoration: TextDecoration.underline,
+                                decorationColor: SoloLevelingColors
+                                    .textSecondary
+                                    .withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            size: 16,
+                            color: SoloLevelingColors.textSecondary,
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -686,16 +829,109 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
     );
   }
 
+  // Секция Здоровье Сосуда
+  Widget _buildVesselHealthSection(BuildContext context, AppTr t) {
+    if (!_healthEnabled) return const SizedBox.shrink();
+
+    final goalSteps = 10000;
+    final progress = (_todaySteps / goalSteps).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        profileSectionTitle(context, 'Состояние сосуда'),
+        const SizedBox(height: 10),
+        ProfileNeonCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.directions_run,
+                        color: SoloLevelingColors.neonBlue,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Шаги сегодня',
+                        style: GoogleFonts.manrope(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: SoloLevelingColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '$_todaySteps / $goalSteps',
+                    style: GoogleFonts.rajdhani(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: SoloLevelingColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: SoloLevelingColors.surfaceLight,
+                  color: SoloLevelingColors.neonBlue,
+                  minHeight: 8,
+                ),
+              ),
+              if (_todaySteps < 3000) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Система: Твой сосуд слабеет. Охотнику нужна мобильность.',
+                  style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    color: SoloLevelingColors.warning,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   // Панель статов
   Widget _buildStatsPanel(BuildContext context, Hunter hunter, AppTr t) {
     final d = hunter.displayStats;
     final b = hunter.stats;
+    final visuals = Theme.of(context).extension<SystemVisuals>() ??
+        const SystemVisuals(
+          backgroundKind: SystemBackgroundKind.grid,
+          backgroundAssetPath: '',
+          particlesKind: SystemParticlesKind.none,
+          panelRadius: 12,
+          panelBorderWidth: 1,
+          panelBlur: 0,
+          titleLetterSpacing: 2.2,
+          surfaceKind: SystemSurfaceKind.digital,
+          glowIntensity: 0.35,
+          borderRadiusScale: 1.0,
+          shadowProfile: SystemShadowProfile.soft,
+        );
     return ProfileNeonCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStatBar(
+      padding: EdgeInsets.zero,
+      child: WorldMaterialChrome(
+        visuals: visuals,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildStatBar(
             context,
             _statLabel('strength', t),
             d.strength,
@@ -742,7 +978,8 @@ class _HunterProfilePageState extends ConsumerState<HunterProfilePage> {
             hunter,
             t,
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
